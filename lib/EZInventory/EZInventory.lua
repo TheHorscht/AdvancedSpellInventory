@@ -63,8 +63,8 @@ local function update()
   for slot, values in pairs(extra_info) do
     local dir = get_direction(values.target_x, values.target_y, values.x, values.y)
     local dist = get_distance(values.target_x, values.target_y, values.x, values.y)
-    values.x = values.x - math.cos(dir) * math.min(dist * 0.5, 60)
-    values.y = values.y - math.sin(dir) * math.min(dist * 0.5, 60)
+    values.x = values.x - math.cos(dir) * dist * 0.5
+    values.y = values.y - math.sin(dir) * dist * 0.5
     if dist < 1 then
       values.x = values.target_x
       values.y = values.target_y
@@ -122,9 +122,9 @@ function Slot__mt:Render(gui, new_id)
     end
     -- Make content sprite slightly bigger when it's being hovered
     if widgets[slot_privates[self].content].hovered and not widgets[slot_privates[self].content].dragging then
-      scale = scale * 1.2
-      offset_x = offset_x - 1.5 * scale
-      offset_y = offset_y - 1.5 * scale
+      -- scale = scale * 1.2
+      -- offset_x = offset_x - 1.5 * scale
+      -- offset_y = offset_y - 1.5 * scale
       if slot_privates[self].content.tooltip_func then
         GuiIdPushString(gui, "EZInventory_tooltip")
         slot_privates[self].content.tooltip_func(gui, self.x, self.y + self.height + 10, self.z - 2000, slot_privates[self].content)
@@ -142,7 +142,7 @@ function Slot__mt:Render(gui, new_id)
     if widgets[slot_privates[self].content].dragging then
       z = z - 500
     end
-    GuiZSetForNextWidget(gui, z)
+    GuiZSetForNextWidget(gui, z - 1)
     GuiImage(gui, new_id(), x + offset_x, y + offset_y, slot_privates[self].content.sprite, 1, scale, scale)
     if slot_privates[self].content.render_after then
       slot_privates[self].content.render_after(gui, new_id, x + offset_x, y + offset_y, z, scale)
@@ -160,10 +160,12 @@ function Slot__mt:Render(gui, new_id)
 end
 
 function Slot__mt:ClearContent()
-  widgets[slot_privates[self].content]:Destroy()
-  widgets[slot_privates[self].content] = nil
-  slot_privates[self].content = nil
-  slot_privates[self].content_cleared_this_frame = true
+  if slot_privates[self].content then
+    widgets[slot_privates[self].content]:Destroy()
+    widgets[slot_privates[self].content] = nil
+    slot_privates[self].content = nil
+    slot_privates[self].content_cleared_this_frame = true
+  end
 end
 
 -- Moves content from one slot to another, if the other slot is occupied, swaps contents
