@@ -1,3 +1,6 @@
 [submodule "lib/EZWand"]
 	path = lib/EZWand
 	url = https://github.com/TheHorscht/EZWand
+[submodule "lib/EZInventory/lib/EZMouse"]
+	path = lib/EZInventory/lib/EZMouse
+	url = https://github.com/TheHorscht/EZMouse

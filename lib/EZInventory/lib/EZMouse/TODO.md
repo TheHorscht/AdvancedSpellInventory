@@ -1,1 +1,0 @@
-[ ] Quantization + Keeping aspect ratio
