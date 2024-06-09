@@ -1,4 +1,4 @@
-local EZMouse = dofile_once("%PATH%lib/EZMouse/EZMouse.lua")("%PATH%lib/EZMouse/")
+local EZMouse = dofile("%PATH%lib/EZMouse/EZMouse.lua")("%PATH%lib/EZMouse/")
 
 local function is_inside_rect(x, y, rect_x, rect_y, width, height)
 	return not ((x < rect_x) or (x > rect_x + width) or (y < rect_y) or (y > rect_y + height))
@@ -34,27 +34,57 @@ local function fire_event(slot, event_name, event_args)
   end
 end
 
-local EZInventory_GUI = GuiCreate()
-local function update()
+local animations = {}
+-- Takes a function that takes gui and new_id as argument and should return true when the animation is finished
+local function add_animation(func)
+  table.insert(animations, func)
+end
+
+local function update_animations(gui, new_id)
+  -- Traverse backwards so we can remove while iterating
+  for i=#animations, 1, -1 do
+    local func = animations[i]
+    if func(gui, new_id) then
+      table.remove(animations, i)
+    end
+  end
+end
+
+local function update(gui, visible, dragging_enabled)
+  if visible == nil then
+    visible = true
+  end
+  if dragging_enabled == nil then
+    dragging_enabled = true
+  end
   if GameGetFrameNum() <= 10 then
     return
   end
-  GuiStartFrame(EZInventory_GUI)
-  EZMouse.update(EZInventory_GUI)
+
+  EZMouse.update(gui, visible, dragging_enabled)
+
   local id = 1
   local function new_id()
     id = id + 1
     return id
   end
 
+  update_animations(gui, new_id)
+
   content_being_dragged = nil
   for i, slot in ipairs(slot_instances) do
     -- if widgets[slot_privates[slot].content] then
-    --   widgets[slot_privates[slot].content]:DebugDraw(EZInventory_GUI)
+    --   widgets[slot_privates[slot].content]:DebugDraw(gui)
+    -- end
+
+    -- if widgets[slot_privates[slot].content] then
+    --   widgets[slot_privates[slot].content]:DebugDraw(gui)
     -- end
     slot_privates[slot].content_cleared_this_frame = false
-    slot.hovered = widgets[slot_privates[slot].content] and widgets[slot_privates[slot].content].hovered or false
-    slot.dragging = widgets[slot_privates[slot].content] and widgets[slot_privates[slot].content].dragging or false
+    slot_privates[slot].hovered = widgets[slot_privates[slot].content] and widgets[slot_privates[slot].content].hovered or false
+    slot_privates[slot].dragging = widgets[slot_privates[slot].content] and widgets[slot_privates[slot].content].dragging or false
+    -- slot.hovered = widgets[slot_privates[slot].content] and widgets[slot_privates[slot].content].hovered or false
+    -- slot.dragging = widgets[slot_privates[slot].content] and widgets[slot_privates[slot].content].dragging or false
     if slot_privates[slot].content and widgets[slot_privates[slot].content].dragging then
       content_being_dragged = slot_privates[slot].content
     end
@@ -63,6 +93,8 @@ local function update()
   for slot, values in pairs(extra_info) do
     local dir = get_direction(values.target_x, values.target_y, values.x, values.y)
     local dist = get_distance(values.target_x, values.target_y, values.x, values.y)
+    -- values.x = values.x - math.cos(dir) * dist * 0.01
+    -- values.y = values.y - math.sin(dir) * dist * 0.01
     values.x = values.x - math.cos(dir) * dist * 0.5
     values.y = values.y - math.sin(dir) * dist * 0.5
     if dist < 1 then
@@ -71,12 +103,15 @@ local function update()
       extra_info[slot] = nil
     end
   end
-  for i, slot in ipairs(slot_instances) do
-    slot:Render(EZInventory_GUI, new_id)
+  if visible then
+    for i, slot in ipairs(slot_instances) do
+      slot:Render(gui, new_id)
+    end
   end
 end
 
 function Slot__mt:Destroy()
+  error("destroy", 2)
   if widgets[slot_privates[self].content] then
     widgets[slot_privates[self].content]:Destroy()
     widgets[slot_privates[self].content] = nil
@@ -112,13 +147,13 @@ function Slot__mt:RemoveEventListener(event_name, event_listener)
 end
 
 function Slot__mt:Render(gui, new_id)
-  if slot_privates[self].content then
+  if slot_privates[self].content and self.visible then
     local scale = self.width / 20
     local sprite_w, sprite_h = GuiGetImageDimensions(gui, slot_privates[self].content.sprite)
     local offset_x, offset_y = 2 * scale, 2 * scale --  (difference between sprite_size and slot_size) / 2
     -- Offset content sprite if it's being dragged
     if widgets[slot_privates[self].content].dragging then
-      offset_x, offset_y = self.width / 2, self.height / 2
+      -- offset_x, offset_y = self.width / 2, self.height / 2
     end
     -- Make content sprite slightly bigger when it's being hovered
     if widgets[slot_privates[self].content].hovered and not widgets[slot_privates[self].content].dragging then
@@ -144,8 +179,17 @@ function Slot__mt:Render(gui, new_id)
     end
     GuiZSetForNextWidget(gui, z - 1)
     GuiImage(gui, new_id(), x + offset_x, y + offset_y, slot_privates[self].content.sprite, 1, scale, scale)
+
+    local stack_size = (slot_privates[self].content.stack_size or 1)
+    if (slot_privates[self].content.max_stack_size or 1) > 1 and stack_size > 1 then
+      GuiZSetForNextWidget(gui, z - 2)
+      GuiColorSetForNextWidget(gui, 0.8, 0.8, 0.8, 1)
+      local text_width, text_height = GuiGetTextDimensions(gui, tostring(stack_size), 1, 1, "data/fonts/font_small_numbers.xml", true)
+      GuiText(gui, x + self.width - text_width - 2, y + self.height - text_height - 2, tostring(stack_size), 1, "data/fonts/font_small_numbers.xml", true)
+    end
+
     if slot_privates[self].content.render_after then
-      slot_privates[self].content.render_after(gui, new_id, x + offset_x, y + offset_y, z, scale)
+      slot_privates[self].content.render_after(self, gui, new_id, x + offset_x, y + offset_y, z, scale)
     end
     -- widgets[slot_privates[self].content]:DebugDraw(gui)
   end
@@ -168,31 +212,114 @@ function Slot__mt:ClearContent()
   end
 end
 
--- Moves content from one slot to another, if the other slot is occupied, swaps contents
-function Slot__mt:MoveContent(target_slot)
-  -- print(("MoveContent (%s[%s] -> %s[%s])"):format(self.z, slot_privates[self].content, target_slot.z, slot_privates[target_slot].content))
-  if not slot_privates[self].content then
-    error("Can't move content, source slot is empty.", 2)
+-- Splits a stack, content_cpy_func should return a copy of the content
+function Slot__mt:SplitContent(target_slot, amount, content_cpy_func)
+  local self_content = slot_privates[self].content
+  -- local target_content = slot_privates[target_slot].content
+  if (self_content.stack_size or 1) <= amount then
+    error("Can't split, not enough amount", 2)
   end
-  -- First save our content, then clear current slots content,
-  -- move that into the other content and if that slot already has content, move that into this one
-  local temp_content = slot_privates[self].content
-  slot_privates[self].content = nil
-  if slot_privates[target_slot].content then
-    target_slot:MoveContent(self)
-  end
+  self_content.stack_size = self_content.stack_size - amount
+  local content_copy = content_cpy_func(self_content)
+  content_copy.stack_size = amount
+  target_slot:SetContent(content_copy)
   extra_info[target_slot] = {
     target_x = target_slot.x,
     target_y = target_slot.y,
-    x = widgets[temp_content].x + self.width / 2,
-    y = widgets[temp_content].y + self.width / 2,
+    x = self.x,
+    y = self.y,
   }
-  target_slot:SetContent(temp_content, true)
-  fire_event(self, "move_content", { content = temp_content, target = target_slot })
+end
+
+-- Moves content from one slot to another, if the other slot is occupied, swaps contents
+function Slot__mt:MoveContent(target_slot, skip_check)
+  -- print(("MoveContent (%s[%s] -> %s[%s])"):format(self.z, slot_privates[self].content, target_slot.z, slot_privates[target_slot].content))
+  if not self.content then
+  -- if not slot_privates[self].content then
+    error("Can't move content, source slot is empty.", 2)
+  end
+
+  if not skip_check and self.data.callback and not self.data.callback(self, target_slot) then
+    return
+  end
+
+  -- First save our content, then clear current slots content,
+  -- move that into the other content and if that slot already has content, move that into this one
+  local self_content = slot_privates[self].content
+  -- slot_privates[self].content = nil
+
+  -- Need to check this before resetting content
+  local can_stack = self:CanStackWith(target_slot)
+  -- Clear it like this instead of ClearContent because we don't want to destroy the widgets, we need to reuse them
+  slot_privates[self].content = nil
+  local target_content = slot_privates[target_slot].content
+  if target_content then
+    -- Determine if content is stackable
+    -- if (target_content.max_stack_size or 1) >= (target_content.stack_size or 1) + (self_content.stack_size or 1) then
+    if can_stack then
+      -- Stack
+      target_content.stack_size = (target_content.stack_size or 1) + (self_content.stack_size or 1)
+      -- self:ClearContent()
+      -- target_slot:MoveContent(self)
+      -- print("STACKING?!?!")
+
+      -- Capture the start values in a closure, to be used in the animation function
+      local pos_x, pos_y = widgets[self_content].x, widgets[self_content].y
+      local target_x, target_y = target_slot.x, target_slot.y
+      local img = self_content.sprite
+      add_animation(function(gui, new_id)
+        local dir = get_direction(target_x, target_y, pos_x, pos_y)
+        local dist = get_distance(target_x, target_y, pos_x, pos_y)
+        -- pos_x = pos_x - math.cos(dir) * dist * 0.01
+        -- pos_y = pos_y - math.sin(dir) * dist * 0.01
+        pos_x = pos_x - math.cos(dir) * dist * 0.5
+        pos_y = pos_y - math.sin(dir) * dist * 0.5
+        if dist < 1 then
+          return true
+        else
+          GuiImage(gui, new_id(), pos_x, pos_y, img, 1, 1, 1)
+          return false
+        end
+      end)
+
+      -- fire_event(self, "stack_content", { content = self_content, target = target_slot })
+      -- target_slot:SetContent(target_content, true)
+      -- Need to set it again otherwise ClearContent doesn't work, this part could be designed better...
+      slot_privates[self].content = self_content
+      self:ClearContent()
+      fire_event(self, "move_content", { content = self_content, target = target_slot, stack_moved = true })
+      return
+    end
+    -- print("SWAPPPING?!?!")
+    target_slot:MoveContent(self)
+  end
+  -- print("MOVING!!!!!!!")
+
+  extra_info[target_slot] = {
+    target_x = target_slot.x,
+    target_y = target_slot.y,
+    x = widgets[self_content].x,-- + self.width / 2,
+    y = widgets[self_content].y,-- + self.height / 2,
+  }
+
+  -- Need to do this after storing extra info because SetContent changes widget.x and y
+  target_slot:SetContent(self_content)
+  -- target_slot:SetContent(self_content, true)
+
+  -- self:ClearContent()
+  fire_event(self, "move_content", { content = self_content, target = target_slot })
+  -- extra_info[target_slot] = {
+  --   target_x = target_slot.x,
+  --   target_y = target_slot.y,
+  --   x = widgets[self_content].x, -- + self.width / 2,
+  --   y = widgets[self_content].y, -- + self.width / 2,
+  -- }
+  -- target_slot:SetContent(self_content, true)
+  -- fire_event(self, "move_content", { content = self_content, target = target_slot })
 end
 
 function Slot__mt:__index(key)
-  if key == "content" then
+  if key == "content" or key == "hovered" or key == "dragging" then
     return slot_privates[self][key]
   else
     -- local x = rawget(self, key)
@@ -200,6 +327,25 @@ function Slot__mt:__index(key)
     -- print('x (' .. tostring(x) .. ':'.. type(x) .. ')')
     return Slot__mt[key] or rawget(self, key)
   end
+end
+
+function Slot__mt:__newindex(key, value)
+  -- print("new index: ", key, tostring(value))
+  if key == "draggable" then
+    for i, widget in pairs(widgets) do
+      -- widget.enabled = value
+      -- print("Enabled: ", tostring(value))
+    end
+  end
+  if key == "enabled" then
+    if self.content then
+      widgets[self.content].draggable = value
+    end
+  end
+  if key == "hovered" then
+    error("Can't set read-only property '" .. key .. "'", 2)
+  end
+  slot_privates[self][key] = value
 end
 
 function Slot__mt:SetContent(content, dont_fire_event)
@@ -218,6 +364,12 @@ function Slot__mt:SetContent(content, dont_fire_event)
     for i, target_slot in ipairs(slot_instances) do
       if slot_is_hovered(target_slot) then
         if target_slot ~= self then
+          -- Check if we even can move there and if not, stay in its own slot and do nothing
+          if self.data.callback and not self.data.callback(self, target_slot) then
+            -- if self.data.callback and not self.data.callback(self.content, target_slot.content) then
+            was_moved_to_self = true
+            break
+          end
           self:MoveContent(target_slot)
           was_moved_to_another_slot = true
         else
@@ -231,8 +383,8 @@ function Slot__mt:SetContent(content, dont_fire_event)
       extra_info[self] = {
         target_x = event.start_x,
         target_y = event.start_y,
-        x = widget.x + self.width / 2,
-        y = widget.y + self.width / 2,
+        x = widget.x, -- + self.width / 2,
+        y = widget.y, -- + self.width / 2,
       }
       widget.x = event.start_x
       widget.y = event.start_y
@@ -245,15 +397,16 @@ function Slot__mt:SetContent(content, dont_fire_event)
     end
   end
   if not widgets[content] then
+    print("Creating widget")
     widgets[content] = EZMouse.Widget({
       x = self.x,
       y = self.y,
       z = self.z - 1000,
       width = self.width,
       height = self.height,
-      draggable = true,
+      draggable = true, --not InputIsKeyDown(Key_LSHIFT), --true,
       enabled = true,
-      drag_anchor = "center",
+      drag_anchor = "top_left",
       constraints = { left = 0, top = 0, right = 999, bottom = 999 } -- TODO: Fill constraints with screen width and height
     })
   else
@@ -263,11 +416,13 @@ function Slot__mt:SetContent(content, dont_fire_event)
   end
   widget_extra_info[content] = widget_extra_info[content] or {}
   if widget_extra_info[content].drag_start_handler then
+    -- print(("Trying to remove event handler on widget (%s) for content (%s)"):format(widgets[content], content))
     widgets[content]:RemoveEventListener("drag_start", widget_extra_info[content].drag_start_handler)
   end
   if widget_extra_info[content].drag_end_handler then
     widgets[content]:RemoveEventListener("drag_end", widget_extra_info[content].drag_end_handler)
   end
+  -- print(("Registering event handler on widget (%s) for content (%s)"):format(widgets[content], content))
   widgets[content]:AddEventListener("drag_start", drag_start_handler)
   widgets[content]:AddEventListener("drag_end", drag_end_handler)
   widget_extra_info[content].drag_start_handler = drag_start_handler
@@ -278,6 +433,33 @@ function Slot__mt:SetContent(content, dont_fire_event)
   end
 end
 
+function Slot__mt:CanStackWith(target_slot)
+  local self_content = slot_privates[self].content
+  local target_content = slot_privates[target_slot].content
+  if not self_content or not target_content then
+    return false
+  end
+  if not target_content.stackable_with then
+    error("content has no 'stackable_with' function defined", 2)
+  end
+  if target_content.stackable_with(self_content, target_content) then
+    if (target_content.max_stack_size or 1) >= (target_content.stack_size or 1) + (self_content.stack_size or 1) then
+      return true
+    end
+  end
+  return false
+end
+
+local function init_prop(value, default_value, var_type)
+  if value == nil then
+    value = default_value
+  end
+  if var_type == "boolean" then
+    value = not not value
+  end
+  return value
+end
+
 local function new_slot(props)
   local o = setmetatable({
     x = props.x,
@@ -285,7 +467,8 @@ local function new_slot(props)
     z = props.z or 1,
     data = props.data, -- Should contain static data like slot_number or slot type like "Headgear" or whatever
     width = props.width,
-    height = props.height
+    height = props.height,
+    visible = init_prop(props.visible, true, "boolean"),
   }, Slot__mt)
   slot_privates[o] = {
     background_sprite = "data/ui_gfx/inventory/full_inventory_box.png",
@@ -295,6 +478,7 @@ local function new_slot(props)
       move_content = {}, -- Gets called on the slot it was moved FROM, once the content has been moved to another slot
       drop_content = {}, -- Gets called when the content is dropped into "the world"
     },
+    draggable = init_prop(props.draggable, true, "boolean")
   }
 
   table.insert(slot_instances, o)
@@ -304,4 +488,8 @@ end
 return {
   Slot = new_slot,
   Update = update,
+  Reset = function()
+    GuiDestroy(gui)
+    gui = GuiCreate()
+  end
 }
