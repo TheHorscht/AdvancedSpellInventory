@@ -26,7 +26,7 @@ local spell_types = {
 }
 
 if ModIsEnabled("mnee") then
-	ModLuaFileAppend("mods/mnee/bindings.lua", "mods/AdvancedSpellInventory/mnee.lua")
+	ModLuaFileAppend("mods/mnee/bindings.lua", "mods/AdvancedSpellInventory/files/mnee.lua")
 	dofile_once("mods/mnee/lib.lua")
 end
 
@@ -362,7 +362,7 @@ local function update_slots()
     end
     if not did_store_spell then
       -- Problem: Sometimes in vanilla, items can have the same inv slot set, so indexing by inv slot is suboptimal...
-      local slot = slots[spell.inv_x + 1]
+      local slot = slots[spell.inv_y * full_inventory_slots_x + spell.inv_x + 1]
       slot:SetContent(make_content_from_entity(spell.entity_id))
     end
   end
@@ -495,22 +495,7 @@ local function load_stored_spells()
     if spell ~= "" then
       local values = string_split(spell, ";") -- stack_size;action_id;uses_remaining
       local stack_size, action_id, uses_remaining = unpack(values)
-      if not storage_slots[i] then
-        -- -- This should only happen if user picks up lots of spells, then changes the rows in the settings
-        -- -- in which case, just drop the spells on the floor
-        -- local player = EntityGetWithTag("player_unit")[1]
-        -- local x, y = GameGetCameraPos()
-        -- if player then
-        --   x, y = EntityGetFirstHitboxCenter(player)
-        --   for j=1, stack_size do
-        --     local action_entity = CreateItemActionEntity(action_id, x, y)
-        --     local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
-        --     if item_comp then
-        --       ComponentSetValue2(item_comp, "uses_remaining", uses_remaining)
-        --     end
-        --   end
-        -- end
-      else
+      if storage_slots[i] then
         storage_slots[i]:SetContent(make_content_from_action_id(action_id, stack_size, uses_remaining))
       end
     end
@@ -532,139 +517,110 @@ local function save_stored_spells()
 end
 
 function OnPlayerSpawned(player)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
-
-
-
-
-
-
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("DISC_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("DISC_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("DISC_BULLET", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("POLLEN", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("GRENADE", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("GLUE_SHOT", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("SUMMON_ROCK", 0, 0), false)
-
-
-
-
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
-  -- GamePickUpInventoryItem(player, EntityLoad("data/entities/animals/boss_centipede/sampo.xml"), false)
-
-
-  if not slots then
-    slots = {}
-    full_inventory_slots_x, full_inventory_slots_y = get_inventory_size()
-    for x=1, full_inventory_slots_x do
-      slots[x] = EZInventory.Slot({
-        x = origin_x + (x-1) * 20,
-        y = origin_y,
-        data = {
-          slot_number = x,
-          move_check = function(self, target_slot)
-            return self.content.spell.action_id ~= nil or not target_slot.data.is_storage
-          end,
-          -- Needs to return the max stack size this slot can hold of the provided content
-          get_max_stack_size = function(self, content)
-            return 1
-          end
-        },
-        width = 20,
-        height = 20,
-      })
-      slots[x]:AddEventListener("shift_click", function(self, ev)
-        if self.content then
-          local free_slot = get_first_free_or_stackable_storage_slot(self)
-          if free_slot then
-            self:MoveContent(free_slot)
-          end
-        end
-      end)
-      slots[x]:AddEventListener("drop_content", drop_content_handler)
-      slots[x]:AddEventListener("move_content", function(self, ev)
-        if ev.target.data.is_storage then
-          EntityKill(ev.content.spell.entity_id)
-          ev.content.spell.entity_id = nil
-          ev.content.spell.item_comp = nil
-          save_stored_spells()
-        else
-          ComponentSetValue2(ev.content.spell.item_comp, "inventory_slot", ev.target.data.slot_number - 1, ev.content.spell.inv_y)
-        end
-      end)
-    end
-    update_slots()
-
-    storage_slots = {}
-    for y=1, num_rows do
-      for x=1, full_inventory_slots_x do
-        local slot = EZInventory.Slot({
-          x = origin_x + (x-1) * 20,
-          y = origin_y + (y-1) * 20 + 60,
-          data = {
-            is_storage = true,
-            slot_number = y * full_inventory_slots_x + x,
-            x = x,
-            y = y,
-            move_check = function(self, target_slot) return true end,
-            get_max_stack_size = function(self, content)
-              return math.huge
-            end
-          },
-          width = 20,
-          height = 20,
-        })
-        slot:AddEventListener("shift_click", function(self, ev)
-          if self.content then
-            local free_slot = get_first_free_inventory_slot()
-            if free_slot then
-              slot:MoveContent(free_slot)
-            end
-          end
-        end)
-        slot:AddEventListener("drop_content", drop_content_handler)
-        slot:AddEventListener("move_content", function(self, ev)
-          if not ev.target.data.is_storage then
-            local action_entity = CreateItemActionEntity(ev.content.spell.action_id)
-            local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
-            if item_comp then
-              ev.content.spell.entity_id = action_entity
-              ev.content.spell.item_comp = item_comp
-              ComponentSetValue2(item_comp, "inventory_slot", ev.target.data.slot_number - 1, ev.content.spell.inv_y)
-              ComponentSetValue2(item_comp, "uses_remaining", ev.content.spell.uses_remaining)
-            end
-            local spell_inventory = get_spell_inventory()
-            EntityAddChild(spell_inventory, action_entity)
-          end
-          save_stored_spells()
-        end)
-        storage_slots[(y-1) * full_inventory_slots_x + x] = slot
-      end
-    end
-  end
-
-  load_stored_spells()
-
-  -- for i, slot in ipairs(slots) do
-  --   if slot.content then
-  --     local free_slot = get_first_free_or_stackable_storage_slot(slot)
-  --     if free_slot then
-  --       slot:MoveContent(free_slot)
-  --     end
-  --   end
-  -- end
+  frame_player_spawned = GameGetFrameNum()
 end
 
 function OnWorldPostUpdate()
+  if frame_player_spawned == GameGetFrameNum() - 1 then
+    if not slots then
+      slots = {}
+      full_inventory_slots_x, full_inventory_slots_y = get_inventory_size()
+      for y=1, full_inventory_slots_y do
+        for x=1, full_inventory_slots_x do
+          local idx = x + (y-1) * full_inventory_slots_x
+          slots[idx] = EZInventory.Slot({
+            x = origin_x + (x-1) * 20,
+            y = origin_y + (y-1) * 20,
+            data = {
+              slot_x = x,
+              slot_y = y,
+              move_check = function(self, target_slot)
+                return self.content.spell.action_id ~= nil or not target_slot.data.is_storage
+              end,
+              -- Needs to return the max stack size this slot can hold of the provided content
+              get_max_stack_size = function(self, content)
+                return 1
+              end
+            },
+            width = 20,
+            height = 20,
+          })
+          slots[idx]:AddEventListener("shift_click", function(self, ev)
+            if self.content then
+              local free_slot = get_first_free_or_stackable_storage_slot(self)
+              if free_slot then
+                self:MoveContent(free_slot)
+              end
+            end
+          end)
+          slots[idx]:AddEventListener("drop_content", drop_content_handler)
+          slots[idx]:AddEventListener("move_content", function(self, ev)
+            if ev.target.data.is_storage then
+              EntityKill(ev.content.spell.entity_id)
+              ev.content.spell.entity_id = nil
+              ev.content.spell.item_comp = nil
+              save_stored_spells()
+            else
+              ComponentSetValue2(ev.content.spell.item_comp, "inventory_slot", ev.target.data.slot_x - 1, ev.target.data.slot_y - 1)
+            end
+          end)
+        end
+      end
+      update_slots()
+
+      storage_slots = {}
+      for y=1, num_rows do
+        for x=1, full_inventory_slots_x do
+          local slot = EZInventory.Slot({
+            x = origin_x + (x-1) * 20,
+            y = origin_y + (y-1) * 20 + (full_inventory_slots_y * 20) + 40,
+            data = {
+              is_storage = true,
+              slot_x = x,
+              slot_y = y,
+              x = x,
+              y = y,
+              move_check = function(self, target_slot) return true end,
+              get_max_stack_size = function(self, content)
+                return math.huge
+              end
+            },
+            width = 20,
+            height = 20,
+          })
+          slot:AddEventListener("shift_click", function(self, ev)
+            if self.content then
+              local free_slot = get_first_free_inventory_slot()
+              if free_slot then
+                print('free_slot.data.slot_y (' .. tostring(free_slot.data.slot_y) .. ':'.. type(free_slot.data.slot_y) .. ')')
+                slot:MoveContent(free_slot)
+              end
+            end
+          end)
+          slot:AddEventListener("drop_content", drop_content_handler)
+          slot:AddEventListener("move_content", function(self, ev)
+            if not ev.target.data.is_storage then
+              local action_entity = CreateItemActionEntity(ev.content.spell.action_id)
+              local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
+              if item_comp then
+                ev.content.spell.entity_id = action_entity
+                ev.content.spell.item_comp = item_comp
+                print('ev.target.data.slot_y - 1 (' .. tostring(ev.target.data.slot_y - 1) .. ':'.. type(ev.target.data.slot_y - 1) .. ')')
+                ComponentSetValue2(item_comp, "inventory_slot", ev.target.data.slot_x - 1, ev.target.data.slot_y - 1)
+                ComponentSetValue2(item_comp, "uses_remaining", ev.content.spell.uses_remaining)
+              end
+              local spell_inventory = get_spell_inventory()
+              EntityAddChild(spell_inventory, action_entity)
+            end
+            save_stored_spells()
+          end)
+          storage_slots[(y-1) * full_inventory_slots_x + x] = slot
+        end
+      end
+    end
+    load_stored_spells()
+  end
+
   if has_spell_inventory_changed() then
     update_slots()
   end
@@ -766,7 +722,7 @@ function OnWorldPostUpdate()
       GuiText(gui, 4, 0, "")
       return clicked
     end
-    GuiLayoutBeginHorizontal(gui, origin_x + 2, origin_y + 24, true)
+    GuiLayoutBeginHorizontal(gui, origin_x + 2, origin_y + (full_inventory_slots_y * 20) + 4, true)
     if button("Sort") then
       sort_spells_in_storage()
     end
@@ -838,7 +794,7 @@ function OnWorldPostUpdate()
     input_hovered = hovered
     GuiLayoutEnd(gui)
     -- Second row, filter by spell type
-    GuiLayoutBeginHorizontal(gui, origin_x + 1, origin_y + 39, true)
+    GuiLayoutBeginHorizontal(gui, origin_x + 1, origin_y + (20 * full_inventory_slots_y) + 19, true)
     local text = "Filter spells by type:"
     local text_width, text_height = GuiGetTextDimensions(gui, text)
     GuiText(gui, 4, (20 - text_height) / 2, text)

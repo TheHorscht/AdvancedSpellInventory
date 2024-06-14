@@ -1,0 +1,9 @@
+<Mod
+	name="Advanced Spell Inventory"
+	description="Store your spells, stack them, sort them, filter them!"
+	tags="gameplay"
+	dont_upload_folders=""
+	dont_upload_files="README.md|TODO.md|package-lock.json|package.json|
+	lib/EZWand/wandy.xml|lib/EZWand/TODO.md|lib/EZWand/tests.lua"
+> 
+</Mod>
