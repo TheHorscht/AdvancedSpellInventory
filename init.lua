@@ -336,6 +336,35 @@ local function get_first_free_inventory_slot()
   end
 end
 
+local key = "AdvancedSpellInventory_stored_spells"
+local function load_stored_spells()
+  local serialized = GlobalsGetValue(key, "")
+  local stored_spells = string_split(serialized, "|")
+  for i, spell in ipairs(stored_spells) do
+    if spell ~= "" then
+      local values = string_split(spell, ";") -- stack_size;action_id;uses_remaining
+      local stack_size, action_id, uses_remaining = unpack(values)
+      if storage_slots[i] then
+        storage_slots[i]:SetContent(make_content_from_action_id(action_id, stack_size, uses_remaining))
+      end
+    end
+  end
+end
+
+local function save_stored_spells()
+  local out = {}
+  for i, slot in ipairs(storage_slots) do
+    local spell = slot.content and slot.content.spell
+    if spell then
+      local str = ("%d;%s;%d"):format(slot.content.stack_size, spell.action_id, spell.uses_remaining)
+      table.insert(out, str)
+    else
+      table.insert(out, "")
+    end
+  end
+  GlobalsSetValue(key, table.concat(out, "|"))
+end
+
 -- Keep the display in sync with what's in the spell inventory
 -- Simply recreating all widgets is probably more efficient than doing all kinds of checks to only update the ones that changed
 local function update_slots()
@@ -364,6 +393,8 @@ local function update_slots()
       -- Problem: Sometimes in vanilla, items can have the same inv slot set, so indexing by inv slot is suboptimal...
       local slot = slots[spell.inv_y * full_inventory_slots_x + spell.inv_x + 1]
       slot:SetContent(make_content_from_entity(spell.entity_id))
+    else
+      save_stored_spells()
     end
   end
 end
@@ -485,35 +516,6 @@ function string_split(input, sep)
     table.insert(result, v)
   end
   return result
-end
-
-local key = "AdvancedSpellInventory_stored_spells"
-local function load_stored_spells()
-  local serialized = GlobalsGetValue(key, "")
-  local stored_spells = string_split(serialized, "|")
-  for i, spell in ipairs(stored_spells) do
-    if spell ~= "" then
-      local values = string_split(spell, ";") -- stack_size;action_id;uses_remaining
-      local stack_size, action_id, uses_remaining = unpack(values)
-      if storage_slots[i] then
-        storage_slots[i]:SetContent(make_content_from_action_id(action_id, stack_size, uses_remaining))
-      end
-    end
-  end
-end
-
-local function save_stored_spells()
-  local out = {}
-  for i, slot in ipairs(storage_slots) do
-    local spell = slot.content and slot.content.spell
-    if spell then
-      local str = ("%d;%s;%d"):format(slot.content.stack_size, spell.action_id, spell.uses_remaining)
-      table.insert(out, str)
-    else
-      table.insert(out, "")
-    end
-  end
-  GlobalsSetValue(key, table.concat(out, "|"))
 end
 
 function OnPlayerSpawned(player)
