@@ -594,7 +594,6 @@ function OnWorldPostUpdate()
             if self.content then
               local free_slot = get_first_free_inventory_slot()
               if free_slot then
-                print('free_slot.data.slot_y (' .. tostring(free_slot.data.slot_y) .. ':'.. type(free_slot.data.slot_y) .. ')')
                 slot:MoveContent(free_slot)
               end
             end
@@ -607,7 +606,6 @@ function OnWorldPostUpdate()
               if item_comp then
                 ev.content.spell.entity_id = action_entity
                 ev.content.spell.item_comp = item_comp
-                print('ev.target.data.slot_y - 1 (' .. tostring(ev.target.data.slot_y - 1) .. ':'.. type(ev.target.data.slot_y - 1) .. ')')
                 ComponentSetValue2(item_comp, "inventory_slot", ev.target.data.slot_x - 1, ev.target.data.slot_y - 1)
                 ComponentSetValue2(item_comp, "uses_remaining", ev.content.spell.uses_remaining)
               end
