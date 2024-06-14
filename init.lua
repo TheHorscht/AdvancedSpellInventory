@@ -61,6 +61,8 @@ local slot_width_total, slot_height_total = (slot_width + slot_margin * 2), (slo
 local sorting_function = sorting_functions.alphabetical
 local search_filter = ""
 local filter_by_type
+local num_rows = ModSettingGet("AdvancedSpellInventory.num_rows")
+local auto_storage = ModSettingGet("AdvancedSpellInventory.auto_storage")
 
 local function get_mouse_gui_pos(gui)
   -- These seem to always be 1280, 720 no matter the actual screen size/resolution
@@ -340,7 +342,6 @@ end
 -- Keep the display in sync with what's in the spell inventory
 -- Simply recreating all widgets is probably more efficient than doing all kinds of checks to only update the ones that changed
 local function update_slots()
-  -- print("updating slots!")
   for i, slot in ipairs(slots) do
     slot:ClearContent()
   end
@@ -348,6 +349,13 @@ local function update_slots()
     -- Problem: Sometimes in vanilla, items can have the same inv slot set, so indexing by inv slot is suboptimal...
     local slot = slots[spell.inv_x + 1]
     slot:SetContent(make_content_from_entity(spell.entity_id))
+    if auto_storage and spell.item_comp and ComponentGetValue2(spell.item_comp, "mFramePickedUp") == GameGetFrameNum() then
+      -- Straight into the storage!
+      local free_slot = get_first_free_or_stackable_storage_slot(slot)
+      if free_slot then
+        slot:MoveContent(free_slot)
+      end
+    end
   end
 end
 
@@ -478,7 +486,24 @@ local function load_stored_spells()
     if spell ~= "" then
       local values = string_split(spell, ";") -- stack_size;action_id;uses_remaining
       local stack_size, action_id, uses_remaining = unpack(values)
-      storage_slots[i]:SetContent(make_content_from_action_id(action_id, stack_size, uses_remaining))
+      if not storage_slots[i] then
+        -- -- This should only happen if user picks up lots of spells, then changes the rows in the settings
+        -- -- in which case, just drop the spells on the floor
+        -- local player = EntityGetWithTag("player_unit")[1]
+        -- local x, y = GameGetCameraPos()
+        -- if player then
+        --   x, y = EntityGetFirstHitboxCenter(player)
+        --   for j=1, stack_size do
+        --     local action_entity = CreateItemActionEntity(action_id, x, y)
+        --     local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
+        --     if item_comp then
+        --       ComponentSetValue2(item_comp, "uses_remaining", uses_remaining)
+        --     end
+        --   end
+        -- end
+      else
+        storage_slots[i]:SetContent(make_content_from_action_id(action_id, stack_size, uses_remaining))
+      end
     end
   end
 end
@@ -571,7 +596,7 @@ function OnPlayerSpawned(player)
     update_slots()
 
     storage_slots = {}
-    for y=1, 3 do
+    for y=1, num_rows do
       for x=1, full_inventory_slots_x do
         local slot = EZInventory.Slot({
           x = origin_x + (x-1) * 20,
@@ -620,14 +645,14 @@ function OnPlayerSpawned(player)
 
   load_stored_spells()
 
-  for i, slot in ipairs(slots) do
-    if slot.content then
-      local free_slot = get_first_free_or_stackable_storage_slot(slot)
-      if free_slot then
-        -- slot:MoveContent(free_slot)
-      end
-    end
-  end
+  -- for i, slot in ipairs(slots) do
+  --   if slot.content then
+  --     local free_slot = get_first_free_or_stackable_storage_slot(slot)
+  --     if free_slot then
+  --       slot:MoveContent(free_slot)
+  --     end
+  --   end
+  -- end
 end
 
 function OnWorldPostUpdate()
@@ -661,6 +686,7 @@ function OnWorldPostUpdate()
 	end
 	GuiOptionsAdd(gui, GUI_OPTION.NoPositionTween)
 
+  local player = EntityGetWithTag("player_unit")[1]
 	local inventory_open = is_inventory_open()
 	-- If button dragging is enabled in the settings and the inventory is not open, make it draggable
 	if not inventory_open and not button_locked then
@@ -674,14 +700,13 @@ function OnWorldPostUpdate()
 		end
 	end
 	-- Toggle it open/closed
-	if not inventory_open and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png")
+	if player and not inventory_open and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png")
 		or ModIsEnabled("mnee") and get_binding_pressed("AdvSpellInv", "toggle")) then
 		open = not open
 		GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
 	end
 
-  local player = EntityGetWithTag("player_unit")[1]
-  local visible = open and not inventory_open and player
+  local visible = open and not inventory_open and (player ~= nil)
   local dragging_enabled = not InputIsKeyDown(Key_LSHIFT)
   EZInventory.Update(gui, visible, dragging_enabled)
 	if visible then
@@ -694,7 +719,7 @@ function OnWorldPostUpdate()
     -- Title "Spells"
     GuiText(gui, origin_x, origin_y - 2 - text_h + 1, title_text)
     local panel_width = full_inventory_slots_x * slot_width - 2
-    local panel_height = full_inventory_slots_y * slot_height + 5 * slot_height - 2
+    local panel_height = full_inventory_slots_y * slot_height + (num_rows + 2) * slot_height - 2
     -- Container with border
     GuiZSetForNextWidget(gui, 20)
     GuiImageNinePiece(gui, new_id(), origin_x + 1, origin_y + 1, panel_width, panel_height, 1, "mods/AdvancedSpellInventory/files/container_9piece.png", "mods/AdvancedSpellInventory/files/container_9piece.png")
