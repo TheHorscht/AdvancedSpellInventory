@@ -46,8 +46,8 @@ sorting_functions = {
   end,
 }
 
-local button_pos_x = 162
-local button_pos_y = 41
+local button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
+local button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
 local open = false
 local button_locked = true
 local origin_x, origin_y =
@@ -56,20 +56,17 @@ local origin_x, origin_y =
   tonumber(MagicNumbersGetValue("UI_BARS_POS_Y")) --170, 48
 local full_inventory_slots_x, full_inventory_slots_y
 local slot_width, slot_height = 20, 20
-local slot_margin = 1
-local slot_width_total, slot_height_total = (slot_width + slot_margin * 2), (slot_height + slot_margin * 2)
 local sorting_function = sorting_functions.alphabetical
 local search_filter = ""
 local filter_by_type
 local num_rows = ModSettingGet("AdvancedSpellInventory.num_rows")
 local auto_storage = ModSettingGet("AdvancedSpellInventory.auto_storage")
 
-local function get_mouse_gui_pos(gui)
-  -- These seem to always be 1280, 720 no matter the actual screen size/resolution
-  local mouse_screen_x, mouse_screen_y = InputGetMousePosOnScreen() -- or ControlsComponent:mMousePositionRaw
-  local mx_p, my_p = mouse_screen_x / 1280, mouse_screen_y / 720
-  local gui_width, gui_height = GuiGetScreenDimensions(gui)
-  return mx_p * gui_width, my_p * gui_height
+function OnPausedChanged(is_paused, is_main_menu)
+  if not is_paused then
+    button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
+    button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
+  end
 end
 
 local function get_spell_inventory()
@@ -346,15 +343,27 @@ local function update_slots()
     slot:ClearContent()
   end
   for i, spell in ipairs(get_spells_in_inventory() or {}) do
-    -- Problem: Sometimes in vanilla, items can have the same inv slot set, so indexing by inv slot is suboptimal...
-    local slot = slots[spell.inv_x + 1]
-    slot:SetContent(make_content_from_entity(spell.entity_id))
+    local did_store_spell = false
     if auto_storage and spell.item_comp and ComponentGetValue2(spell.item_comp, "mFramePickedUp") == GameGetFrameNum() then
-      -- Straight into the storage!
-      local free_slot = get_first_free_or_stackable_storage_slot(slot)
-      if free_slot then
-        slot:MoveContent(free_slot)
+      local content = make_content_from_entity(spell.entity_id)
+      for i, slot in ipairs(storage_slots or {}) do
+        if slot.content == nil then
+          slot:SetContent(content)
+          did_store_spell = true
+        elseif are_spells_same(content.spell, slot.content.spell) then
+          slot.content.stack_size = slot.content.stack_size + 1
+          did_store_spell = true
+        end
+        if did_store_spell then
+          EntityKill(spell.entity_id)
+          break
+        end
       end
+    end
+    if not did_store_spell then
+      -- Problem: Sometimes in vanilla, items can have the same inv slot set, so indexing by inv slot is suboptimal...
+      local slot = slots[spell.inv_x + 1]
+      slot:SetContent(make_content_from_entity(spell.entity_id))
     end
   end
 end
@@ -671,12 +680,6 @@ function OnWorldPostUpdate()
 
   EZMouse.update(gui)
 
-  if GuiButton(gui, new_id(), 0, 180, "Clear") then
-    for i, slot in ipairs(slots) do
-      slot:ClearContent()
-    end
-  end
-
   -- Allow speed clicking
   GuiOptionsAdd(gui, GUI_OPTION.HandleDoubleClickAsClick)
   GuiOptionsAdd(gui, GUI_OPTION.ClickCancelsDoubleClick)
@@ -688,23 +691,40 @@ function OnWorldPostUpdate()
 
   local player = EntityGetWithTag("player_unit")[1]
 	local inventory_open = is_inventory_open()
-	-- If button dragging is enabled in the settings and the inventory is not open, make it draggable
-	if not inventory_open and not button_locked then
-		GuiOptionsAddForNextWidget(gui, GUI_OPTION.IsExtraDraggable)
-		GuiOptionsAddForNextWidget(gui, GUI_OPTION.DrawNoHoverAnimation)
-		GuiImageButton(gui, 5318008, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button_invisible.png")
-		local _, _, hovered, x, y, draw_width, draw_height, draw_x, draw_y = GuiGetPreviousWidgetInfo(gui)
-		if draw_x ~= 0 and draw_y ~= 0 and draw_x ~= button_pos_x and draw_y ~= button_pos_y then
-			button_pos_x = draw_x - draw_width / 2
-			button_pos_y = draw_y - draw_height / 2
-		end
-	end
+  local inventory_bags_open = GlobalsGetValue("InventoryBags_is_open", "0") ~= "0"
 	-- Toggle it open/closed
-	if player and not inventory_open and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png")
+	if player and not inventory_open and not inventory_bags_open
+    and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png")
 		or ModIsEnabled("mnee") and get_binding_pressed("AdvSpellInv", "toggle")) then
 		open = not open
 		GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
 	end
+
+  local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+  if hovered and InputIsMouseButtonDown(Mouse_right) then
+    dragging_button = true
+  end
+  if InputIsMouseButtonJustUp(Mouse_right) then
+    dragging_button = false
+    ModSettingSet("AdvancedSpellInventory.button_pos_x", button_pos_x)
+    ModSettingSet("AdvancedSpellInventory.button_pos_y", button_pos_y)
+  end
+  if dragging_button then
+    button_pos_x, button_pos_y = EZMouse.screen_x - 10, EZMouse.screen_y - 10
+  end
+
+  for i, slot in ipairs(slots or {}) do
+    if slot.hovered and InputIsMouseButtonJustDown(Mouse_right) then
+      drop_content_handler(slot)
+      slot:ClearContent()
+    end
+  end
+  for i, slot in ipairs(storage_slots or {}) do
+    if slot.hovered and InputIsMouseButtonJustDown(Mouse_right) then
+      drop_content_handler(slot)
+      slot:ClearContent()
+    end
+  end
 
   local visible = open and not inventory_open and (player ~= nil)
   local dragging_enabled = not InputIsKeyDown(Key_LSHIFT)
@@ -726,7 +746,7 @@ function OnWorldPostUpdate()
     local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
     -- Block mouse clicks if panel is hovered
     if hovered then
-      local mx, my = get_mouse_gui_pos(gui)
+      local mx, my = EZMouse.screen_x, EZMouse.screen_y
       GuiZSetForNextWidget(gui, 0)
       GuiImage(gui, new_id(), mx - 100, my - 100, "data/debug/whitebox.png", 0.0001, 10, 10)
     end
@@ -746,7 +766,7 @@ function OnWorldPostUpdate()
       GuiText(gui, 4, 0, "")
       return clicked
     end
-    GuiLayoutBeginHorizontal(gui, origin_x + 1, origin_y + 24, true)
+    GuiLayoutBeginHorizontal(gui, origin_x + 2, origin_y + 24, true)
     if button("Sort") then
       sort_spells_in_storage()
     end

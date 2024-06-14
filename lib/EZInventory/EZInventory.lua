@@ -153,7 +153,7 @@ function Slot__mt:Render(gui, new_id)
       -- scale = scale * 1.2
       -- offset_x = offset_x - 1.5 * scale
       -- offset_y = offset_y - 1.5 * scale
-      if slot_privates[self].content.tooltip_func then
+      if not extra_info[self] and slot_privates[self].content.tooltip_func then
         GuiIdPushString(gui, "EZInventory_tooltip")
         slot_privates[self].content.tooltip_func(gui, self.x, self.y + self.height + 10, self.z - 2000, slot_privates[self].content)
         GuiIdPop(gui)

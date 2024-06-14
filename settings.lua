@@ -33,7 +33,17 @@ mod_settings =
 		ui_description = "If you pick up spells, they will go directly\ninto the storage instead of regular spell inventory.",
 		value_default = false,
 		scope = MOD_SETTING_SCOPE_RUNTIME_RESTART,
-	}
+	},
+	{
+		ui_name = "SHID",
+		not_setting = true,
+		ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
+			if GuiButton(gui, im_id, 0, 0, "[ Reset button position ]") then
+				ModSettingSet("AdvancedSpellInventory.button_pos_x", 162)
+				ModSettingSet("AdvancedSpellInventory.button_pos_y", 41)
+			end
+		end
+	},
 }
 
 function ModSettingsUpdate(init_scope)
