@@ -209,22 +209,23 @@ function Slot__mt:ClearContent()
 end
 
 -- Splits a stack, content_cpy_func should return a copy of the content
-function Slot__mt:SplitContent(target_slot, amount, content_cpy_func)
+function Slot__mt:SplitContent(target_slot, amount)
   local self_content = slot_privates[self].content
   -- local target_content = slot_privates[target_slot].content
   if (self_content.stack_size or 1) <= amount then
     error("Can't split, not enough amount", 2)
   end
   self_content.stack_size = self_content.stack_size - amount
-  local content_copy = content_cpy_func(self_content)
+  local content_copy = self_content:clone()-- content_cpy_func(self_content)
   content_copy.stack_size = amount
-  target_slot:SetContent(content_copy)
   extra_info[target_slot] = {
     target_x = target_slot.x,
     target_y = target_slot.y,
-    x = self.x,
-    y = self.y,
+    x = widgets[self_content].x,
+    y = widgets[self_content].y,
   }
+  target_slot:SetContent(content_copy)
+  fire_event(self, "move_content", { content = self_content, target = target_slot, split = true })
 end
 
 -- Moves content from one slot to another, if the other slot is occupied, swaps contents
@@ -234,14 +235,6 @@ function Slot__mt:MoveContent(target_slot, skip_check)
     error("Can't move content, source slot is empty.", 2)
   end
   local target_content = slot_privates[target_slot].content
-  -- Check if content can even move to target slot, and if it's being swapped,
-  -- need to check if both can move before doing any moving
-  if not skip_check and ((self.data.move_check and not self.data.move_check(self, target_slot))
-    or (target_content and target_slot.data.move_check and not target_slot.data.move_check(target_slot, self))) then
-    -- print("move_check failed!")
-    return "not moved"
-  end
-
   -- First save our content, then clear current slots content,
   -- move that into the other content and if that slot already has content, move that into this one
   local self_content = slot_privates[self].content
@@ -249,78 +242,75 @@ function Slot__mt:MoveContent(target_slot, skip_check)
 
   -- Need to check this before resetting content
   local can_stack = self:CanStackWith(target_slot)
-  -- Clear it like this instead of ClearContent because we don't want to destroy the widgets, we need to reuse them
-  slot_privates[self].content = nil
-  if target_content then
-    -- Determine if content is stackable
-    -- if (target_content.max_stack_size or 1) >= (target_content.stack_size or 1) + (self_content.stack_size or 1) then
-    if can_stack then
-      -- Stack
-      target_content.stack_size = (target_content.stack_size or 1) + (self_content.stack_size or 1)
-      -- self:ClearContent()
-      -- target_slot:MoveContent(self)
-      -- print("STACKING?!?!")
-
-      -- Capture the start values in a closure, to be used in the animation function
-      local pos_x, pos_y = widgets[self_content].x, widgets[self_content].y
-      local target_x, target_y = target_slot.x, target_slot.y
-      local img = self_content.sprite
-      local scale = self.width / 20
-      local offset_x, offset_y = 2 * scale, 2 * scale
-      add_animation(function(gui, new_id)
-        local dir = get_direction(target_x, target_y, pos_x, pos_y)
-        local dist = get_distance(target_x, target_y, pos_x, pos_y)
-        pos_x = pos_x - math.cos(dir) * dist * animation_speed
-        pos_y = pos_y - math.sin(dir) * dist * animation_speed
-        if dist < 1 then
-          return true
-        else
-          local z = self.z
-          GuiZSetForNextWidget(gui, z - 1)
-          GuiImage(gui, new_id(), pos_x + offset_x, pos_y + offset_y, img, 1, scale, scale)
-          if self_content.render_after then
-            self_content:render_after(self, gui, new_id, pos_x + offset_x, pos_y + offset_y, z, scale)
-          end
-
-
-          return false
+  if can_stack then
+    target_content.stack_size = (target_content.stack_size or 1) + (self_content.stack_size or 1)
+    -- Capture the start values in a closure, to be used in the animation function
+    local pos_x, pos_y = widgets[self_content].x, widgets[self_content].y
+    local target_x, target_y = target_slot.x, target_slot.y
+    local img = self_content.sprite
+    local scale = self.width / 20
+    local offset_x, offset_y = 2 * scale, 2 * scale
+    add_animation(function(gui, new_id)
+      local dir = get_direction(target_x, target_y, pos_x, pos_y)
+      local dist = get_distance(target_x, target_y, pos_x, pos_y)
+      pos_x = pos_x - math.cos(dir) * dist * animation_speed
+      pos_y = pos_y - math.sin(dir) * dist * animation_speed
+      if dist < 1 then
+        return true
+      else
+        local z = self.z
+        GuiZSetForNextWidget(gui, z - 1)
+        GuiImage(gui, new_id(), pos_x + offset_x, pos_y + offset_y, img, 1, scale, scale)
+        if self_content.render_after then
+          self_content:render_after(self, gui, new_id, pos_x + offset_x, pos_y + offset_y, z, scale)
         end
-      end)
-
-      -- fire_event(self, "stack_content", { content = self_content, target = target_slot })
-      -- target_slot:SetContent(target_content, true)
-      -- Need to set it again otherwise ClearContent doesn't work, this part could be designed better...
-      slot_privates[self].content = self_content
-      self:ClearContent()
-      fire_event(self, "move_content", { content = self_content, target = target_slot, stack_moved = true })
-      return
-    end
-    -- print("SWAPPPING?!?!")
-    target_slot:MoveContent(self)
+        return false
+      end
+    end)
+    -- Need to set it again otherwise ClearContent doesn't work, this part could be designed better...
+    slot_privates[self].content = self_content
+    self:ClearContent()
+    fire_event(self, "move_content", { content = self_content, target = target_slot, stack_moved = true })
+    return
   end
-  -- print("MOVING!!!!!!!")
 
-  extra_info[target_slot] = {
-    target_x = target_slot.x,
-    target_y = target_slot.y,
-    x = widgets[self_content].x,-- + self.width / 2,
-    y = widgets[self_content].y,-- + self.height / 2,
-  }
+  -- If this can't be moved onto a stack, can it even move there at all?
+  if not skip_check and (self.data.move_check and not self.data.move_check(self, target_slot)) then
+    return "not moved"
+  end
+  -- If we can't stack, and we could move there check if there is already something in the target slot
+  -- because then we would have to swap
+  if target_content then
+    -- We can only swap if the target content can even move into ours
+    if not skip_check and target_slot.data.move_check and not target_slot.data.move_check(target_slot, self) then
+      return "not moved"
+    end
+  end
 
-  -- Need to do this after storing extra info because SetContent changes widget.x and y
-  target_slot:SetContent(self_content)
-  -- target_slot:SetContent(self_content, true)
+  -- If we can't even fit our stack size into target slot, split instead of moving
+  local max_target_stack_size = target_slot.data.get_max_stack_size(self, self_content)
+  if max_target_stack_size < self_content.stack_size then
+    self:SplitContent(target_slot, max_target_stack_size)
+    return "split"
+  else
+    -- Clear it like this instead of ClearContent because we don't want to destroy the widgets, we need to reuse them
+    slot_privates[self].content = nil
+    if target_content then
+      -- Swap
+      target_slot:MoveContent(self)
+    end
 
-  -- self:ClearContent()
-  fire_event(self, "move_content", { content = self_content, target = target_slot })
-  -- extra_info[target_slot] = {
-  --   target_x = target_slot.x,
-  --   target_y = target_slot.y,
-  --   x = widgets[self_content].x, -- + self.width / 2,
-  --   y = widgets[self_content].y, -- + self.width / 2,
-  -- }
-  -- target_slot:SetContent(self_content, true)
-  -- fire_event(self, "move_content", { content = self_content, target = target_slot })
+    extra_info[target_slot] = {
+      target_x = target_slot.x,
+      target_y = target_slot.y,
+      x = widgets[self_content].x,
+      y = widgets[self_content].y,
+    }
+
+    -- Need to do this after storing extra info because SetContent changes widget.x and y
+    target_slot:SetContent(self_content)
+    fire_event(self, "move_content", { content = self_content, target = target_slot })
+  end
 end
 
 function Slot__mt:__index(key)
@@ -372,7 +362,8 @@ function Slot__mt:SetContent(content, dont_fire_event)
       if slot_is_hovered(target_slot) then
         if target_slot ~= self then
           -- Check if we even can move there and if not, stay in its own slot and do nothing
-          if self:MoveContent(target_slot) == "not moved" then
+          local result = self:MoveContent(target_slot)
+          if result == "not moved" or result == "split" then
             was_moved_to_self = true
             break
           end
@@ -388,8 +379,8 @@ function Slot__mt:SetContent(content, dont_fire_event)
       extra_info[self] = {
         target_x = event.start_x,
         target_y = event.start_y,
-        x = widget.x, -- + self.width / 2,
-        y = widget.y, -- + self.width / 2,
+        x = widget.x,
+        y = widget.y,
       }
       widget.x = event.start_x
       widget.y = event.start_y
@@ -423,7 +414,6 @@ function Slot__mt:SetContent(content, dont_fire_event)
   end
   widget_extra_info[content] = widget_extra_info[content] or {}
   if widget_extra_info[content].drag_start_handler then
-    -- print(("Trying to remove event handler on widget (%s) for content (%s)"):format(widgets[content], content))
     widgets[content]:RemoveEventListener("drag_start", widget_extra_info[content].drag_start_handler)
   end
   if widget_extra_info[content].drag_end_handler then
@@ -432,14 +422,12 @@ function Slot__mt:SetContent(content, dont_fire_event)
   if widget_extra_info[content].shift_click_handler then
     widgets[content]:RemoveEventListener("shift_click", widget_extra_info[content].shift_click_handler)
   end
-  -- print(("Registering event handler on widget (%s) for content (%s)"):format(widgets[content], content))
   widgets[content]:AddEventListener("drag_start", drag_start_handler)
   widgets[content]:AddEventListener("drag_end", drag_end_handler)
   widgets[content]:AddEventListener("shift_click", shift_click_handler)
   widget_extra_info[content].drag_start_handler = drag_start_handler
   widget_extra_info[content].drag_end_handler = drag_end_handler
   widget_extra_info[content].shift_click_handler = shift_click_handler
-  -- slot_privates[self].event_listeners[event_name]
   if not dont_fire_event then
     fire_event(self, "set_content", { content = content })
   end
@@ -481,6 +469,7 @@ local function new_slot(props)
     width = props.width,
     height = props.height,
     visible = init_prop(props.visible, true, "boolean"),
+    -- greyed_out = init_prop(props.greyed_out, false, "boolean"),
   }, Slot__mt)
   slot_privates[o] = {
     background_sprite = "data/ui_gfx/inventory/full_inventory_box.png",

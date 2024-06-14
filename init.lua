@@ -4,7 +4,9 @@ local EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
 dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/init.lua")("mods/AdvancedSpellInventory/lib/EZInventory/")
 local EZInventory = dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/EZInventory.lua")
 local EZMouse = dofile("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/EZMouse.lua")("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/")
-
+dofile_once("mods/AdvancedSpellInventory/lib/polytools/polytools_init.lua").init("mods/AdvancedSpellInventory/lib/polytools")
+local polytools = dofile_once("mods/AdvancedSpellInventory/lib/polytools/polytools.lua")
+dofile_once("data/scripts/lib/coroutines.lua")
 dofile_once("data/scripts/gun/gun_enums.lua")
 dofile_once("data/scripts/gun/gun_actions.lua")
 
@@ -35,7 +37,7 @@ if ModIsEnabled("mnee") then
 	dofile_once("mods/mnee/lib.lua")
 end
 
-local sort_order = "ascending"
+local sort_order = "descending"
 local sorting_functions
 sorting_functions = {
   alphabetical = function(a, b)
@@ -58,7 +60,7 @@ local button_locked = true
 local origin_x, origin_y =
   tonumber(MagicNumbersGetValue("UI_FULL_INVENTORY_OFFSET_X"))
   + tonumber(MagicNumbersGetValue("UI_BARS_POS_X")),
-  tonumber(MagicNumbersGetValue("UI_BARS_POS_Y")) --170, 48 
+  tonumber(MagicNumbersGetValue("UI_BARS_POS_Y")) --170, 48
 local full_inventory_slots_x, full_inventory_slots_y
 local slot_width, slot_height = 20, 20
 local slot_margin = 1
@@ -139,7 +141,41 @@ local function get_inventory_size()
   end
 end
 
+local poly_place_x, poly_place_y = -951493, 993842
+---Needs to be called from inside an async function. Kills entity and returns the serialized string after 1 frame.
+function serialize_entity(entity)
+	if not coroutine.running() then
+		error("serialize_entity() must be called from inside an async function", 2)
+	end
+	EntityRemoveFromParent(entity)
+	-- Need to do this because we poly the entity and thus lose the reference to it,
+	-- because the polymorphed entity AND the one that it turns back into both have different entity_ids than the original
+	-- That's why we first move it to some location where it will hopefully be the only entity, so we can later get it back
+	-- But this also means that this location will be saved in the serialized string, and when it gets deserialized,
+	-- will spawn there again (Test this later to confirm!!! Too lazy right now)
+	EntityApplyTransform(entity, poly_place_x, poly_place_y)
+	local serialized = polytools.save(entity)
+	wait(0)
+	-- Kill the wand AND call cards IF for some unknown reason they are also detected with EntityGetInRadius
+	for i, v in ipairs(EntityGetInRadius(poly_place_x, poly_place_y, 5)) do
+		EntityRemoveFromParent(v)
+		EntityKill(v)
+	end
+	return serialized
+end
 
+function deserialize_entity(str)
+	if not coroutine.running() then
+		error("deserialize_entity() must be called from inside an async function", 2)
+	end
+	-- Move the entity to a unique location so that we can get a reference to the entity with EntityGetInRadius once polymorph wears off
+	-- Apply polymorph which, when it runs out after 1 frame will turn the entity back into it's original form, which we provide
+	polytools.spawn(poly_place_x, poly_place_y, str) -- x, y is irrelevant since entity retains its old location
+	-- Wait 1 frame for the polymorph to wear off
+	wait(0)
+	local all_entities = EntityGetInRadius(poly_place_x, poly_place_y, 3)
+	return EntityGetRootEntity(all_entities[1])
+end
 
 local spell_tooltip_size_cache = setmetatable({}, { __mode = "k" })
 local function calculate_spell_tooltip_size(gui, x, y, z, content)
@@ -186,7 +222,74 @@ local function draw_other_tooltip(gui, x, y, z, content)
   GuiIdPop(gui)
 end
 
-local function copy_content(content)
+local function tooltip_func(gui, x, y, z, content)
+  -- do return end
+  local action_id = content.spell.action_id
+  GuiAnimateBegin(gui)
+  GuiIdPushString(gui, "tooltip_animation")
+  GuiAnimateScaleIn(gui, 1, 0.08, false)
+  GuiAnimateAlphaFadeIn(gui, 2, 0.15, 0.15, false)
+  if action_id then
+    local size = calculate_spell_tooltip_size(gui, x, y, z, content)
+    EZWand.RenderSpellTooltip(action_id, x + 2 - size.width / 2, y, gui)
+    local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+    if not spell_tooltip_size_cache[content] then
+      spell_tooltip_size_cache[content] = { width = width, height = height }
+    end
+  else
+    local size = calculate_other_tooltip_size(gui, x, y, z, content)
+    draw_other_tooltip(gui, x - size.width / 2, y + 7, z, content)
+  end
+  GuiIdPop(gui)
+  GuiAnimateEnd(gui)
+end
+
+local function does_spell_match_filter(filter, spell)
+  filter = filter:lower()
+  if filter == "" then
+    return true
+  end
+  if spell.action_id then
+    local action_id = spell.action_id
+    local name = GameTextGetTranslatedOrNot(action_lookup[action_id].name)
+    -- local description = GameTextGetTranslatedOrNot(action_lookup[action_id].description)
+    action_id = action_id:lower()
+    return action_id:find(filter) or name:find(filter) -- or description:find(filter)
+  end
+  return false
+end
+
+local function render_after(self, slot, gui, new_id, x, y, z, scale)
+  if self.spell.action_id then
+    GuiZSetForNextWidget(gui, z - 0.5)
+    GuiImage(gui, new_id(), x - 2, y - 2, EZWand.get_spell_bg(self.spell.action_id), 1, 1, 1)
+  end
+  if self.spell.uses_remaining >= 0 then
+    GuiZSetForNextWidget(gui, z - 2)
+    GuiColorSetForNextWidget(gui, 0.8, 0.8, 0.8, 1)
+    GuiText(gui, x, y, self.spell.uses_remaining, 1, "data/fonts/font_small_numbers.xml", true)
+  end
+  -- Grey it out if filters are active
+  if not does_spell_match_filter(search_filter or "", self.spell) then
+    GuiZSetForNextWidget(gui, z - 2.1)
+    GuiImage(gui, new_id(), x - 2, y - 2, "mods/AdvancedSpellInventory/files/grey.png", 1, scale, scale)
+  end
+end
+
+local function are_spells_same(a, b)
+  return a.action_id == b.action_id and a.uses_remaining == b.uses_remaining
+end
+
+-- gets called before moving to check whether it can stack with target slot
+-- a is source slot, b is target
+local function stackable_with(a, b)
+  if b.data.is_storage then
+    return are_spells_same(a.content.spell, b.content.spell)
+  end
+  return false
+end
+
+local function clone_content(content)
   return {
     sprite = content.sprite,
     spell = {
@@ -195,13 +298,66 @@ local function copy_content(content)
       action_id = content.spell.action_id,
       inv_x = content.spell.inv_x,
       inv_y = content.spell.inv_y,
-      ui_sprite = content.spell.ui_sprite,
       uses_remaining = content.spell.uses_remaining,
     },
     max_stack_size = content.max_stack_size,
     render_after = content.render_after,
     stackable_with = content.stackable_with,
-    tooltip_func = content.tooltip_func
+    tooltip_func = content.tooltip_func,
+    clone = content.clone_content
+  }
+end
+
+local function make_content_from_action_id(action_id, stack_size, uses_remaining)
+  local sprite = action_lookup[action_id] and action_lookup[action_id].sprite
+  return {
+    sprite = sprite,
+    stack_size = tonumber(stack_size),
+    max_stack_size = 999,
+    stackable_with = stackable_with,
+    render_after = render_after,
+    tooltip_func = tooltip_func,
+    clone = clone_content,
+    spell = {
+      entity_id = nil,
+      item_comp = nil,
+      action_id = action_id,
+      inv_x = 1,
+      inv_y = 1,
+      uses_remaining = tonumber(uses_remaining),
+    },
+  }
+end
+
+local function make_content_from_entity(entity_id)
+  local action_id
+  local item_action_comp = EntityGetFirstComponentIncludingDisabled(entity_id, "ItemActionComponent")
+  if item_action_comp then
+    action_id = ComponentGetValue2(item_action_comp, "action_id")
+  end
+  local inv_x, inv_y, ui_sprite, uses_remaining
+  local item_comp = EntityGetFirstComponentIncludingDisabled(entity_id, "ItemComponent")
+  if item_comp then
+    inv_x, inv_y = ComponentGetValue2(item_comp, "inventory_slot")
+    uses_remaining = ComponentGetValue2(item_comp, "uses_remaining")
+    ui_sprite = action_lookup[action_id] and action_lookup[action_id].sprite or ComponentGetValue2(item_comp, "ui_sprite")
+  end
+  return {
+    sprite = ui_sprite,
+    stack_size = 1,
+    max_stack_size = 999,
+    stackable_with = stackable_with,
+    render_after = render_after,
+    tooltip_func = tooltip_func,
+    clone = clone_content,
+    spell = {
+      entity_id = entity_id,
+      item_comp = item_comp,
+      action_id = action_id,
+      inv_x = inv_x,
+      inv_y = inv_y,
+      uses_remaining = uses_remaining,
+    },
   }
 end
 
@@ -233,51 +389,90 @@ local function update_slots()
   for i, spell in ipairs(get_spells_in_inventory() or {}) do
     -- Problem: Sometimes in vanilla, items can have the same inv slot set, so indexing by inv slot is suboptimal...
     local slot = slots[spell.inv_x + 1]
-    slot:SetContent({
-      sprite = spell.ui_sprite,
-      spell = spell,
-      stack_size = 1,
-      max_stack_size = 200,
-      -- gets called before moving, a is source slot, b is target
-      stackable_with = function(a, b)
-        if b.data.is_storage then
-          return a.content.spell.action_id == b.content.spell.action_id
-            and a.content.spell.uses_remaining == b.content.spell.uses_remaining
-        end
-        return false
-      end,
-      render_after = function(self, slot, gui, new_id, x, y, z, scale)
-        if self.spell.action_id then
-          GuiZSetForNextWidget(gui, z - 0.5)
-          GuiImage(gui, new_id(), x - 2, y - 2, EZWand.get_spell_bg(self.spell.action_id), 1, 1, 1)
-        end
-        if self.spell.uses_remaining >= 0 then
-          GuiZSetForNextWidget(gui, z - 2)
-          GuiColorSetForNextWidget(gui, 0.8, 0.8, 0.8, 1)
-          GuiText(gui, x, y, self.spell.uses_remaining, 1, "data/fonts/font_small_numbers.xml", true)
-        end
-      end,
-      tooltip_func = function(gui, x, y, z, content)
-        local action_id = content.spell.action_id
-        GuiAnimateBegin(gui)
-        GuiIdPushString(gui, "tooltip_animation")
-        GuiAnimateScaleIn(gui, 1, 0.08, false)
-        GuiAnimateAlphaFadeIn(gui, 2, 0.15, 0.15, false)
-        if action_id then
-          local size = calculate_spell_tooltip_size(gui, x, y, z, content)
-          EZWand.RenderSpellTooltip(action_id, x + 2 - size.width / 2, y, gui)
-          local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
-          if not spell_tooltip_size_cache[content] then
-            spell_tooltip_size_cache[content] = { width = width, height = height }
-          end
-        else
-          local size = calculate_other_tooltip_size(gui, x, y, z, content)
-          draw_other_tooltip(gui, x - size.width / 2, y + 7, z, content)
-        end
-        GuiIdPop(gui)
-        GuiAnimateEnd(gui)
+    slot:SetContent(make_content_from_entity(spell.entity_id))
+    -- slot:SetContent({
+    --   sprite = spell.ui_sprite,
+    --   spell = spell,
+    --   stack_size = 1,
+    --   max_stack_size = 999,
+    --   -- gets called before moving, a is source slot, b is target
+    --   stackable_with = function(a, b)
+    --     if b.data.is_storage then
+    --       return a.content.spell.action_id == b.content.spell.action_id
+    --         and a.content.spell.uses_remaining == b.content.spell.uses_remaining
+    --     end
+    --     return false
+    --   end,
+    --   render_after = function(self, slot, gui, new_id, x, y, z, scale)
+    --     if self.spell.action_id then
+    --       GuiZSetForNextWidget(gui, z - 0.5)
+    --       GuiImage(gui, new_id(), x - 2, y - 2, EZWand.get_spell_bg(self.spell.action_id), 1, 1, 1)
+    --     end
+    --     if self.spell.uses_remaining >= 0 then
+    --       GuiZSetForNextWidget(gui, z - 2)
+    --       GuiColorSetForNextWidget(gui, 0.8, 0.8, 0.8, 1)
+    --       GuiText(gui, x, y, self.spell.uses_remaining, 1, "data/fonts/font_small_numbers.xml", true)
+    --     end
+    --   end,
+    --   tooltip_func = function(gui, x, y, z, content)
+    --     do return end
+    --     local action_id = content.spell.action_id
+    --     GuiAnimateBegin(gui)
+    --     GuiIdPushString(gui, "tooltip_animation")
+    --     GuiAnimateScaleIn(gui, 1, 0.08, false)
+    --     GuiAnimateAlphaFadeIn(gui, 2, 0.15, 0.15, false)
+    --     if action_id then
+    --       local size = calculate_spell_tooltip_size(gui, x, y, z, content)
+    --       EZWand.RenderSpellTooltip(action_id, x + 2 - size.width / 2, y, gui)
+    --       local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+    --       if not spell_tooltip_size_cache[content] then
+    --         spell_tooltip_size_cache[content] = { width = width, height = height }
+    --       end
+    --     else
+    --       local size = calculate_other_tooltip_size(gui, x, y, z, content)
+    --       draw_other_tooltip(gui, x - size.width / 2, y + 7, z, content)
+    --     end
+    --     GuiIdPop(gui)
+    --     GuiAnimateEnd(gui)
+    --   end,
+    --   clone = clone_content
+    -- })
+  end
+end
+
+local function sort_spells_in_storage()
+  local contents = {}
+  for i, slot in ipairs(storage_slots) do
+    if slot.content then
+      table.insert(contents, slot.content)
+    end
+  end
+  -- Merge same spells
+  for i=#contents, 1, -1 do
+    local content = contents[i]
+    for j=i-1, 1, -1 do
+      local content2 = contents[j]
+      if are_spells_same(content.spell, content2.spell) then
+        content2.stack_size = content2.stack_size + content.stack_size
+        table.remove(contents, i)
+        break
       end
-    })
+    end
+  end
+  for i, slot in ipairs(storage_slots) do
+    slot:ClearContent()
+  end
+  table.sort(contents, function(a, b)
+    if sort_order == "ascending" then
+      return sorting_function(a, b)
+    elseif sort_order == "descending" then
+      return sorting_function(b, a)
+    end
+    error("You misspelled sort_order, stringly typed strikes again")
+    return true
+  end)
+  for i, content in ipairs(contents) do
+    storage_slots[i]:SetContent(content)
   end
 end
 
@@ -356,29 +551,90 @@ local function drop_content_handler(self, ev)
   self:ClearContent()
 end
 
+function string_split(input, sep)
+  local result = {}
+  for v in string.gmatch(input..sep, '([^'.. sep ..']*)' .. sep) do
+    table.insert(result, v)
+  end
+  return result
+end
+
 local key = "AdvancedSpellInventory_stored_spells"
 local function load_stored_spells()
   local serialized = GlobalsGetValue(key, "")
-
+  local stored_spells = string_split(serialized, "|")
+  for i, spell in ipairs(stored_spells) do
+    if spell ~= "" then
+      local values = string_split(spell, ";") -- stack_size;action_id;uses_remaining
+      local stack_size, action_id, uses_remaining = unpack(values)
+      storage_slots[i]:SetContent(make_content_from_action_id(action_id, stack_size, uses_remaining))
+      -- print(("%s stack_size(%s), action_id(%s), uses_remaining(%s)"):format(i, stack_size, action_id, uses_remaining))
+    end
+  end
 end
 
 local function save_stored_spells()
-  GlobalsSetValue(key, "")
+  local out = {}
+  for i, slot in ipairs(storage_slots) do
+    local spell = slot.content and slot.content.spell
+    if spell then
+      local str = ("%d;%s;%d"):format(slot.content.stack_size, spell.action_id, spell.uses_remaining)
+      table.insert(out, str)
+    else
+      table.insert(out, "")
+    end
+  end
+  -- print(table.concat(out, "|"))
+  GlobalsSetValue(key, table.concat(out, "|"))
 end
 
 function OnPlayerSpawned(player)
+  -- local wse = GameGetWorldStateEntity()
+  -- local ent--  = EntityCreateNew("AdvancedSpellInventory_stored_spells")
+  -- for i, child in ipairs(EntityGetAllChildren(wse) or {}) do
+  --   if EntityGetName(child) == "AdvancedSpellInventory_stored_spells" then
+  --     ent = child
+  --     break
+  --   end
+  -- end
+  -- if not ent then
+  --   ent = EntityCreateNew("AdvancedSpellInventory_stored_spells")
+  --   EntityAddChild(wse, ent)
+  -- end
+  -- for i=1, 1000 do
+  --   local spell = CreateItemActionEntity("BOMB", 0, 0)
+  --   EntityAddChild(ent, spell)
+  -- end
+
+
+
   -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
   -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
   -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
   -- GamePickUpInventoryItem(player, CreateItemActionEntity("LIGHT_BULLET", 0, 0), false)
   -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
+
+
+
+
+
+
   GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
+  GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
+  GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
+  GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
+  GamePickUpInventoryItem(player, CreateItemActionEntity("DISC_BULLET", 0, 0), false)
+  GamePickUpInventoryItem(player, CreateItemActionEntity("DISC_BULLET", 0, 0), false)
   GamePickUpInventoryItem(player, CreateItemActionEntity("DISC_BULLET", 0, 0), false)
   GamePickUpInventoryItem(player, CreateItemActionEntity("POLLEN", 0, 0), false)
   GamePickUpInventoryItem(player, CreateItemActionEntity("GRENADE", 0, 0), false)
   GamePickUpInventoryItem(player, CreateItemActionEntity("GLUE_SHOT", 0, 0), false)
   GamePickUpInventoryItem(player, CreateItemActionEntity("SUMMON_ROCK", 0, 0), false)
-  -- GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
+
+
+
+
+  GamePickUpInventoryItem(player, CreateItemActionEntity("BOMB", 0, 0), false)
   GamePickUpInventoryItem(player, EntityLoad("data/entities/animals/boss_centipede/sampo.xml"), false)
   if not slots then
     slots = {}
@@ -390,18 +646,30 @@ function OnPlayerSpawned(player)
         data = {
           slot_number = x,
           move_check = function(self, target_slot)
-            -- print("move check slot")
-            if self.content.spell.action_id then
-              -- Only support storing spells currently
-              return not target_slot.content or self:CanStackWith(target_slot) or target_slot.content.stack_size == 1
-            else
-              return not target_slot.data.is_storage --false
-            end
+            return self.content.spell.action_id ~= nil or not target_slot.data.is_storage
+            -- do return true end
+            -- if self.content.spell.action_id then
+            --   -- Only support storing spells currently
+            --   return not target_slot.content or self:CanStackWith(target_slot) or target_slot.content.stack_size == 1
+            -- else
+            --   return not target_slot.data.is_storage --false
+            -- end
+          end,
+          -- Needs to return the max stack size this slot can hold of the provided content
+          get_max_stack_size = function(self, content)
+            return 1
           end
         },
         width = 20,
         height = 20,
       })
+      slots[x]:AddEventListener("set_content", function(self, ev)
+        -- print("set content!!!!!!!")
+        -- local free_slot = get_first_free_or_stackable_storage_slot(self)
+        -- if free_slot then
+        --   self:MoveContent(free_slot)
+        -- end
+      end)
       slots[x]:AddEventListener("shift_click", function(self, ev)
         if self.content then
           local free_slot = get_first_free_or_stackable_storage_slot(self)
@@ -436,29 +704,32 @@ function OnPlayerSpawned(player)
             x = x,
             y = y,
             move_check = function(self, target_slot)
-              -- print("move check storage slot")
-              if target_slot.data.is_storage then
-                return true
-              else
-                if self.content and self.content.stack_size == 1 then
-                  return true
-                elseif target_slot.content then
-                  return false
-                else
-                  self:SplitContent(target_slot, 1, copy_content)
-                  local action_entity = CreateItemActionEntity(target_slot.content.spell.action_id)
-                  local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
-                  if item_comp then
-                    target_slot.content.spell.entity_id = action_entity
-                    target_slot.content.spell.item_comp = item_comp
-                    ComponentSetValue2(item_comp, "inventory_slot", target_slot.data.slot_number - 1, target_slot.content.spell.inv_y)
-                    ComponentSetValue2(item_comp, "uses_remaining", target_slot.content.spell.uses_remaining)
-                  end
-                  local spell_inventory = get_spell_inventory()
-                  EntityAddChild(spell_inventory, action_entity)
-                end
-                return false
-              end
+              do return true end
+              -- if target_slot.data.is_storage then
+              --   return true
+              -- else
+              --   if self.content and self.content.stack_size == 1 then
+              --     return true
+              --   elseif target_slot.content then
+              --     return false
+              --   else
+              --     self:SplitContent(target_slot, 1, clone_content)
+              --     local action_entity = CreateItemActionEntity(target_slot.content.spell.action_id)
+              --     local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
+              --     if item_comp then
+              --       target_slot.content.spell.entity_id = action_entity
+              --       target_slot.content.spell.item_comp = item_comp
+              --       ComponentSetValue2(item_comp, "inventory_slot", target_slot.data.slot_number - 1, target_slot.content.spell.inv_y)
+              --       ComponentSetValue2(item_comp, "uses_remaining", target_slot.content.spell.uses_remaining)
+              --     end
+              --     local spell_inventory = get_spell_inventory()
+              --     EntityAddChild(spell_inventory, action_entity)
+              --   end
+              --   return false
+              -- end
+            end,
+            get_max_stack_size = function(self, content)
+              return math.huge
             end
           },
           width = 20,
@@ -486,11 +757,14 @@ function OnPlayerSpawned(player)
             local spell_inventory = get_spell_inventory()
             EntityAddChild(spell_inventory, action_entity)
           end
+          save_stored_spells()
         end)
         storage_slots[(y-1) * full_inventory_slots_x + x] = slot
       end
     end
   end
+
+  -- load_stored_spells()
 
   for i, slot in ipairs(slots) do
     if slot.content then
@@ -503,6 +777,13 @@ function OnPlayerSpawned(player)
 end
 
 function OnWorldPostUpdate()
+  if search_filter_changed then
+    for i, slot in ipairs(storage_slots) do
+      if slot.content then
+        -- slot.greyed_out = slot.content.spell.action_id:find(search_filter) == nil
+      end
+    end
+  end
   if has_spell_inventory_changed() then
     -- GamePrint("SPELLS CHANGED")
     update_slots()
@@ -516,6 +797,8 @@ function OnWorldPostUpdate()
 
   gui = gui or GuiCreate()
   GuiStartFrame(gui)
+
+  EZMouse.update(gui)
 
   if GuiButton(gui, new_id(), 0, 180, "Clear") then
     for i, slot in ipairs(slots) do
@@ -593,29 +876,8 @@ function OnWorldPostUpdate()
       return clicked
     end
     GuiLayoutBeginHorizontal(gui, origin_x + 1, origin_y + 24, true)
-    -- GuiLayoutBeginHorizontal(gui, origin_x + 4, origin_y + 24, true)
     if button("Sort") then
-      local contents = {}
-      for i, slot in ipairs(storage_slots) do
-        if slot.content then
-          table.insert(contents, slot.content)
-        end
-      end
-      for i, slot in ipairs(storage_slots) do
-        slot:ClearContent()
-      end
-      table.sort(contents, function(a, b)
-        if sort_order == "ascending" then
-          return sorting_function(a, b)
-        elseif sort_order == "descending" then
-          return sorting_function(b, a)
-        end
-        error("You misspelled sort_order, stringly typed strikes again")
-        return true
-      end)
-      for i, content in ipairs(contents) do
-        storage_slots[i]:SetContent(content)
-      end
+      sort_spells_in_storage()
     end
     if sort_order == "ascending" then
       GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
@@ -636,6 +898,72 @@ function OnWorldPostUpdate()
     if button("Uses remaining", sorting_function == sorting_functions.uses_remaining) then
       sorting_function = sorting_functions.uses_remaining
     end
+    local v = ""
+    if input_focused then
+      GuiAnimateBegin(gui)
+      GuiAnimateAlphaFadeIn(gui, new_id(), 0, 0, true)
+      GuiBeginAutoBox(gui)
+      GuiOptionsAddForNextWidget(gui, GUI_OPTION.Layout_NoLayouting)
+      GuiZSetForNextWidget(gui, -99999999999)
+      GuiBeginScrollContainer(gui, new_id(), EZMouse.screen_x, EZMouse.screen_y, 10, 10, false, 0, 0)
+      GuiEndAutoBoxNinePiece(gui)
+      GuiAnimateEnd(gui)
+
+      v = GuiTextInput(gui, new_id(), 0, 0, "", 0, 8)
+
+      GuiEndScrollContainer(gui)
+    end
+    -- Input field with logic to disable inputs and have backspace-holding delete functionality
+    if input_focused then
+      GuiColorSetForNextWidget(gui, 0.9, 0.9, 0, 1)
+    end
+    GuiText(gui, 0, 0, "Filter:")
+    local new_search_filter = GuiTextInput(gui, new_id(), 0, 0, search_filter or "", 54, 8)
+    local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+    if InputIsMouseButtonJustDown(Mouse_right) and hovered then
+      new_search_filter = ""
+      search_filter = ""
+    end
+    if #new_search_filter < 8 then
+      new_search_filter = new_search_filter .. v
+    end
+    if InputIsKeyJustDown(Key_BACKSPACE) then
+      input_backspace_down_frame = GameGetFrameNum()
+      new_search_filter = new_search_filter:gsub(".?$", "")
+    elseif input_focused and InputIsKeyDown(Key_BACKSPACE) and input_backspace_down_frame + 15 < GameGetFrameNum() and GameGetFrameNum() % 5 == 0 then
+      new_search_filter = new_search_filter:gsub(".?$", "")
+    end
+    if new_search_filter ~= search_filter then
+      search_filter_changed = true
+    end
+    if input_focused then
+      search_filter = new_search_filter
+    end
+    if InputIsMouseButtonJustDown(Mouse_left) then
+      input_focused = hovered
+    elseif InputIsKeyJustDown(Key_RETURN) then
+      input_focused = false
+    end
+    input_hovered = hovered
     GuiLayoutEnd(gui)
 	end
+
+  -- Disable controls if input field is hovered
+  local player = EntityGetWithTag("player_unit")[1]
+  if player then
+    local controls_enabled = not visible or not input_focused
+    if controls_enabled ~= controls_enabled_last_frame then
+      local controls_comp = EntityGetFirstComponentIncludingDisabled(player, "ControlsComponent")
+      if controls_comp then
+        EntityRemoveComponent(player, controls_comp)
+        controls_comp = EntityAddComponent2(player, "ControlsComponent")
+        ComponentSetValue2(controls_comp, "enabled", controls_enabled)
+      end
+      local inventory_2_comp = EntityGetFirstComponentIncludingDisabled(player, "Inventory2Component")
+      if inventory_2_comp then
+        EntitySetComponentIsEnabled(player, inventory_2_comp, controls_enabled)
+      end
+    end
+    controls_enabled_last_frame = controls_enabled
+  end
 end
