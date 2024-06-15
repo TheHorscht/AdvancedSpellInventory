@@ -2,17 +2,12 @@ dofile_once("data/scripts/lib/utilities.lua")
 dofile_once("data/scripts/debug/keycodes.lua")
 dofile_once("data/scripts/lib/coroutines.lua")
 dofile_once("data/scripts/gun/gun_enums.lua")
-dofile_once("data/scripts/gun/gun_actions.lua")
 dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/init.lua")("mods/AdvancedSpellInventory/lib/EZInventory/")
-local EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
+local EZWand
 local EZInventory = dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/EZInventory.lua")
 local EZMouse = dofile("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/EZMouse.lua")("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/")
 
 local action_lookup = {}
-for i, action in ipairs(actions) do
-  action_lookup[action.id] = action
-end
-
 local spell_types = {
   { name = "Everything", icon = "mods/AdvancedSpellInventory/files/spell_type_all.png" },
   { type = ACTION_TYPE_PROJECTILE, name = GameTextGetTranslatedOrNot("$inventory_actiontype_projectile"), icon = "data/ui_gfx/inventory/item_bg_projectile.png" },
@@ -516,6 +511,14 @@ function string_split(input, sep)
     table.insert(result, v)
   end
   return result
+end
+
+function OnMagicNumbersAndWorldSeedInitialized()
+  dofile_once("data/scripts/gun/gun_actions.lua")
+  EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
+  for i, action in ipairs(actions) do
+    action_lookup[action.id] = action
+  end
 end
 
 function OnPlayerSpawned(player)
