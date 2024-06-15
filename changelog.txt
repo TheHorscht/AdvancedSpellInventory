@@ -1,3 +1,6 @@
+v0.2.2:
+- FIX: More better compatibility with modded spells
+
 v0.2.1:
 - FIX: Spells added by other mods should work better now
 

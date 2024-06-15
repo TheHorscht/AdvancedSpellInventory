@@ -513,20 +513,19 @@ function string_split(input, sep)
   return result
 end
 
-function OnMagicNumbersAndWorldSeedInitialized()
-  dofile_once("data/scripts/gun/gun_actions.lua")
-  EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
-  for i, action in ipairs(actions) do
-    action_lookup[action.id] = action
-  end
-end
-
 function OnPlayerSpawned(player)
   frame_player_spawned = GameGetFrameNum()
 end
 
 function OnWorldPostUpdate()
+  -- Run this 1 frame after player has spawned
   if frame_player_spawned == GameGetFrameNum() - 1 then
+    -- Do this here so mods have enough time to do their gun_actions.lua mod appends
+    dofile_once("data/scripts/gun/gun_actions.lua")
+    EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
+    for i, action in ipairs(actions) do
+      action_lookup[action.id] = action
+    end
     if not slots then
       slots = {}
       full_inventory_slots_x, full_inventory_slots_y = get_inventory_size()
