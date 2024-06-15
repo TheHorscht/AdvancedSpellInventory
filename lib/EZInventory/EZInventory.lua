@@ -490,6 +490,7 @@ end
 return {
   Slot = new_slot,
   Update = update,
+  UpdateCustomScreenResolution = EZMouse.UpdateCustomScreenResolution,
   Reset = function()
     GuiDestroy(gui)
     gui = GuiCreate()

@@ -1,3 +1,6 @@
+v0.2.0:
+- Add calibration mod setting for custom screen resolutions
+
 v0.1.2:
 - Remove leftover debug prints()
 

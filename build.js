@@ -18,7 +18,7 @@ args.forEach(val => {
 // Config
 const out_dir = __dirname + '/dist';
 const name = path.basename(__dirname);
-const version = '0.1.0';
+const version = '0.2.0';
 const root_folder = __dirname;
 const ignore_list = [
   'node_modules',

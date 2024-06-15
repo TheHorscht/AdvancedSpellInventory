@@ -49,7 +49,6 @@ sorting_functions = {
 local button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
 local button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
 local open = false
-local button_locked = true
 local origin_x, origin_y =
   tonumber(MagicNumbersGetValue("UI_FULL_INVENTORY_OFFSET_X"))
   + tonumber(MagicNumbersGetValue("UI_BARS_POS_X")),
@@ -66,6 +65,7 @@ function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
     button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
     button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
+    EZInventory.UpdateCustomScreenResolution()
   end
 end
 
