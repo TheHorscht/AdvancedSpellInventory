@@ -24,6 +24,16 @@ local spell_types = {
 -- 	ModLuaFileAppend("mods/mnee/bindings.lua", "mods/AdvancedSpellInventory/files/mnee.lua")
 -- end
 
+local sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
+EZInventory.SetSoundsEnabled(sounds_enabled)
+local function play_ui_sound(name)
+  if not sounds_enabled then
+    return
+  end
+  local cx, cy = GameGetCameraPos()
+  GamePlaySound("data/audio/Desktop/ui.bank", "ui/" .. name, cx, cy)
+end
+
 local sort_order = "descending"
 local sorting_functions
 sorting_functions = {
@@ -59,6 +69,8 @@ function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
     button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
     button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
+    sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
+    EZInventory.SetSoundsEnabled(sounds_enabled)
     EZInventory.UpdateCustomScreenResolution()
   end
 end
@@ -460,6 +472,7 @@ end
 local function drop_content_handler(self, ev)
   local player = EntityGetWithTag("player_unit")[1]
   if player then
+    play_ui_sound("item_remove")
     if self.data.is_storage then
       local mx, my = DEBUG_GetMouseWorld()
       SetRandomSeed(GameGetFrameNum() + mx, my)
@@ -656,6 +669,7 @@ function OnWorldPostUpdate()
 		-- or ModIsEnabled("mnee") and get_binding_pressed("AdvSpellInv", "toggle")) then
 		open = not open
 		GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
+    play_ui_sound("inventory_" .. (open and "open" or "close"))
 	end
 
   local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
@@ -817,7 +831,6 @@ function OnWorldPostUpdate()
 	end
 
   -- Disable controls if input field is hovered
-  local player = EntityGetWithTag("player_unit")[1]
   if player then
     local controls_enabled = not visible or not input_focused
     if controls_enabled ~= controls_enabled_last_frame then

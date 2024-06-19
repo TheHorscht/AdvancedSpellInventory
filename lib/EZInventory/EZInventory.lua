@@ -13,6 +13,7 @@ local function get_distance( x1, y1, x2, y2 )
 	return result
 end
 
+local sounds_enabled = true
 local animation_speed = 0.5
 local content_being_dragged = nil
 local slot_instances = {}
@@ -25,6 +26,22 @@ local widget_extra_info = setmetatable({}, { __mode = "k" })
 
 local Slot__mt = {}
 Slot__mt.__index = Slot__mt
+
+local last_frame_sound_played = 0
+local function play_ui_sound(name)
+  local frame_num = GameGetFrameNum()
+  if not sounds_enabled or last_frame_sound_played == frame_num then
+    return
+  end
+  -- Don't play multiple sounds in one frame, the logic for this is easier than
+  -- coordinating which sound should take precedence, like when playing two move sounds when swapping
+  last_frame_sound_played = frame_num
+  local cx, cy = GameGetCameraPos()
+  -- play_ui_sound("item_switch_places")  -- when swapping
+  -- play_ui_sound("item_remove") -- when swapping
+  -- play_ui_sound("item_move_success") -- when moving, not swapping
+  GamePlaySound("data/audio/Desktop/ui.bank", "ui/" .. name, cx, cy)
+end
 
 local function slot_is_hovered(slot)
   return is_inside_rect(EZMouse.screen_x, EZMouse.screen_y, slot.x, slot.y, slot.width, slot.height)
@@ -225,6 +242,7 @@ function Slot__mt:SplitContent(target_slot, amount)
     y = widgets[self_content].y,
   }
   target_slot:SetContent(content_copy)
+  play_ui_sound("item_move_success")
   fire_event(self, "move_content", { content = self_content, target = target_slot, split = true })
 end
 
@@ -244,6 +262,7 @@ function Slot__mt:MoveContent(target_slot, skip_check)
   local can_stack = self:CanStackWith(target_slot)
   if can_stack then
     target_content.stack_size = (target_content.stack_size or 1) + (self_content.stack_size or 1)
+    play_ui_sound("item_move_success")
     -- Capture the start values in a closure, to be used in the animation function
     local pos_x, pos_y = widgets[self_content].x, widgets[self_content].y
     local target_x, target_y = target_slot.x, target_slot.y
@@ -297,6 +316,7 @@ function Slot__mt:MoveContent(target_slot, skip_check)
     slot_privates[self].content = nil
     if target_content then
       -- Swap
+      play_ui_sound("item_switch_places")
       target_slot:MoveContent(self)
     end
 
@@ -307,6 +327,7 @@ function Slot__mt:MoveContent(target_slot, skip_check)
       y = widgets[self_content].y,
     }
 
+    play_ui_sound("item_move_success")
     -- Need to do this after storing extra info because SetContent changes widget.x and y
     target_slot:SetContent(self_content)
     fire_event(self, "move_content", { content = self_content, target = target_slot })
@@ -494,5 +515,8 @@ return {
   Reset = function()
     GuiDestroy(gui)
     gui = GuiCreate()
+  end,
+  SetSoundsEnabled = function(enabled)
+    sounds_enabled = enabled
   end
 }

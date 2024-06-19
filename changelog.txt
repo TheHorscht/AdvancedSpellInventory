@@ -1,3 +1,6 @@
+UNRELEASED:
+- Add sounds and setting to turn them off again
+
 v0.2.3:
 - FIX: Spells could still be dropped with right-click even though window is closed
 - Take out M-Néé support for now

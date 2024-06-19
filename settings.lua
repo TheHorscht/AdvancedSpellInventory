@@ -22,6 +22,13 @@ local custom_screen_resolution_y = ModSettingGet("EZMouse.custom_screen_resoluti
 mod_settings =
 {
 	{
+		id = "sounds_enabled",
+		ui_name = "Enable sounds",
+		-- ui_description = "How many extra spell inventory rows there should be.",
+		value_default = true,
+		scope = MOD_SETTING_SCOPE_RUNTIME,
+	},
+	{
 		id = "num_rows",
 		ui_name = "Amount of rows",
 		ui_description = "How many extra spell inventory rows there should be.",
