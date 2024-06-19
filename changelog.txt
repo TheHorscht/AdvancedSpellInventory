@@ -1,5 +1,6 @@
 UNRELEASED:
 - Add sounds and setting to turn them off again
+- Make quick-move from main to storage prefer stacking over placing them in a free slot
 
 v0.2.3:
 - FIX: Spells could still be dropped with right-click even though window is closed

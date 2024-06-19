@@ -325,12 +325,17 @@ local function make_content_from_entity(entity_id)
 end
 
 local storage_slots
-local function get_first_free_or_stackable_storage_slot(current_slot)
+local function get_first_stackable_or_free_storage_slot(current_slot)
+  local free_slot
   for i, slot in ipairs(storage_slots or {}) do
-    if slot.content == nil or current_slot:CanStackWith(slot) then
+    if not free_slot and slot.content == nil then
+      free_slot = slot
+    end
+    if current_slot:CanStackWith(slot) then
       return slot
     end
   end
+  return free_slot
 end
 
 local slots
@@ -564,7 +569,7 @@ function OnWorldPostUpdate()
           })
           slots[idx]:AddEventListener("shift_click", function(self, ev)
             if self.content then
-              local free_slot = get_first_free_or_stackable_storage_slot(self)
+              local free_slot = get_first_stackable_or_free_storage_slot(self)
               if free_slot then
                 self:MoveContent(free_slot)
               end
