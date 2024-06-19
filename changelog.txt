@@ -1,6 +1,7 @@
-UNRELEASED:
+v0.3.0:
 - Add sounds and setting to turn them off again
 - Make quick-move from main to storage prefer stacking over placing them in a free slot
+- Add text fields for custom resolution to mod settings in addition to the auto-config button
 
 v0.2.3:
 - FIX: Spells could still be dropped with right-click even though window is closed

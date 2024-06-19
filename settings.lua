@@ -16,8 +16,6 @@ local function int_slider(mod_id, gui, in_main_menu, im_id, setting)
 end
 
 local custom_gui
-local custom_screen_resolution_x = ModSettingGet("EZMouse.custom_screen_resolution_x")
-local custom_screen_resolution_y = ModSettingGet("EZMouse.custom_screen_resolution_y")
 
 mod_settings =
 {
@@ -55,50 +53,84 @@ mod_settings =
 		end
 	},
 	{
-		not_setting = true,
-		ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
-			GuiIdPush(gui, im_id)
-			local extra = ""
-			if custom_screen_resolution_x then
-				extra = (" (%d, %d)"):format(custom_screen_resolution_x, custom_screen_resolution_y)
-			end
-			local clicked, right_clicked = GuiButton(gui, 0, 0, 0, "[ Config custom resolution ]" .. extra)
-			GuiTooltip(gui, "Calibration for when you're using a custom resolution", "Right click to reset")
-			if clicked then
-				config_resolution = true
-				custom_gui = GuiCreate()
-			elseif right_clicked then
-				custom_screen_resolution_x = nil
-				custom_screen_resolution_y = nil
-				ModSettingRemove("EZMouse.custom_screen_resolution_x")
-				ModSettingRemove("EZMouse.custom_screen_resolution_y")
-			end
-			if config_resolution then
-				GuiStartFrame(custom_gui)
-				local mx, my = InputGetMousePosOnScreen()
-				GuiZSetForNextWidget(custom_gui, -99999999)
-				local screen_width, screen_height = GuiGetScreenDimensions(custom_gui)
-				local text = "Move your mouse to the very BOTTOM RIGHT CORNER of your screen and CLICK"
-				local text_width, text_height = GuiGetTextDimensions(custom_gui, text)
-				GuiText(custom_gui, (screen_width - text_width) / 2, (screen_height - text_height) / 2, text)
-				GuiZSetForNextWidget(custom_gui, -9999999)
-				GuiColorSetForNextWidget(custom_gui, 0, 0, 0, 1)
-				GuiImage(custom_gui, 1, 0, 0, "data/debug/whitebox.png", 0.8, 1000, 1000)
-				local clicked2, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(custom_gui)
-				local rx, ry = 0, 0
-				if not clicked and clicked2 then
-					rx, ry = math.ceil(mx), math.ceil(my)
-					config_resolution = false
-					custom_screen_resolution_x = rx
-					custom_screen_resolution_y = ry
-					ModSettingSet("EZMouse.custom_screen_resolution_x", rx)
-					ModSettingSet("EZMouse.custom_screen_resolution_y", ry)
-					GuiDestroy(custom_gui)
-					custom_gui = nil
+		category_id = "custom_resolution",
+		foldable = true,
+		_folded = true,
+		ui_name = "Custom Resolution",
+		ui_description = "If you modified your config.xml with a custom\ninternal render resolution, set the same here\nso that the mouse coordinate detection works correctly.",
+		settings = {
+			{
+				not_setting = true,
+				ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
+					local custom_screen_resolution_x = ModSettingGetNextValue("EZMouse.custom_screen_resolution_x")
+					local custom_screen_resolution_y = ModSettingGetNextValue("EZMouse.custom_screen_resolution_y")
+					GuiIdPush(gui, im_id)
+					GuiLayoutBeginHorizontal(gui, 0, 0)
+					GuiText(gui, 0, 0, "Width: ")
+					local new_x = GuiTextInput(gui, 2, 0, 0, tostring(custom_screen_resolution_x or ""), 50, 6, "0123456789")
+					if tonumber(new_x) ~= custom_screen_resolution_x then
+						if tonumber(new_x) == nil then
+							ModSettingRemove("EZMouse.custom_screen_resolution_x")
+						else
+							ModSettingSetNextValue("EZMouse.custom_screen_resolution_x", tonumber(new_x) or 1280, false)
+							ModSettingSet("EZMouse.custom_screen_resolution_x", tonumber(new_x) or 1280)
+						end
+					end
+					GuiText(gui, 0, 0, "Height: ")
+					local new_y = GuiTextInput(gui, 3, 0, 0, tostring(custom_screen_resolution_y or ""), 50, 6, "0123456789")
+					if tonumber(new_y) ~= custom_screen_resolution_y then
+						if tonumber(new_y) == nil then
+							ModSettingRemove("EZMouse.custom_screen_resolution_y")
+						else
+							ModSettingSetNextValue("EZMouse.custom_screen_resolution_y", tonumber(new_y) or 720, false)
+							ModSettingSet("EZMouse.custom_screen_resolution_y", tonumber(new_y) or 720)
+						end
+					end
+					GuiLayoutEnd(gui)
+					GuiIdPop(gui)
 				end
-			end
-			GuiIdPop(gui)
-		end
+			},
+			{
+				not_setting = true,
+				ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
+					GuiIdPush(gui, im_id)
+					local clicked, right_clicked = GuiButton(gui, 0, 0, 0, "[ Auto-config custom resolution ]")
+					GuiTooltip(gui, "Right click to reset", "")
+					if clicked then
+						config_resolution = true
+						custom_gui = GuiCreate()
+					elseif right_clicked then
+						ModSettingRemove("EZMouse.custom_screen_resolution_x")
+						ModSettingRemove("EZMouse.custom_screen_resolution_y")
+					end
+					if config_resolution then
+						GuiStartFrame(custom_gui)
+						local mx, my = InputGetMousePosOnScreen()
+						GuiZSetForNextWidget(custom_gui, -99999999)
+						local screen_width, screen_height = GuiGetScreenDimensions(custom_gui)
+						local text = "Move your mouse to the very BOTTOM RIGHT CORNER of your screen and CLICK"
+						local text_width, text_height = GuiGetTextDimensions(custom_gui, text)
+						GuiText(custom_gui, (screen_width - text_width) / 2, (screen_height - text_height) / 2, text)
+						GuiZSetForNextWidget(custom_gui, -9999999)
+						GuiColorSetForNextWidget(custom_gui, 0, 0, 0, 1)
+						GuiImage(custom_gui, 1, 0, 0, "data/debug/whitebox.png", 0.8, 1000, 1000)
+						local clicked2, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(custom_gui)
+						local rx, ry = 0, 0
+						if not clicked and clicked2 then
+							rx, ry = math.ceil(mx), math.ceil(my)
+							config_resolution = false
+							ModSettingSetNextValue("EZMouse.custom_screen_resolution_x", rx, false)
+							ModSettingSetNextValue("EZMouse.custom_screen_resolution_y", ry, false)
+							ModSettingSet("EZMouse.custom_screen_resolution_x", rx)
+							ModSettingSet("EZMouse.custom_screen_resolution_y", ry)
+							GuiDestroy(custom_gui)
+							custom_gui = nil
+						end
+					end
+					GuiIdPop(gui)
+				end
+			},
+		}
 	},
 }
 
