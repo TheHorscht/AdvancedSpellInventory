@@ -22,7 +22,6 @@ mod_settings =
 	{
 		id = "sounds_enabled",
 		ui_name = "Enable sounds",
-		-- ui_description = "How many extra spell inventory rows there should be.",
 		value_default = true,
 		scope = MOD_SETTING_SCOPE_RUNTIME,
 	},

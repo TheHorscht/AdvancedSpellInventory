@@ -14,6 +14,7 @@ local function get_distance( x1, y1, x2, y2 )
 end
 
 local sounds_enabled = true
+local animations_enabled = false
 local animation_speed = 0.5
 local content_being_dragged = nil
 local slot_instances = {}
@@ -184,11 +185,14 @@ function Slot__mt:Render(gui, new_id)
     end
     -- If it's being dragged, render it on top of all the other contents
     local z = self.z - 1
+    local rot = 0
     if widgets[slot_privates[self].content].dragging then
       z = z - 500
+    elseif animations_enabled then
+      rot = math.sin(GameGetFrameNum() / 6) * 0.05
     end
     GuiZSetForNextWidget(gui, z - 1)
-    GuiImage(gui, new_id(), x + offset_x, y + offset_y, slot_privates[self].content.sprite, 1, scale, scale)
+    GuiImage(gui, new_id(), x + offset_x, y + offset_y, slot_privates[self].content.sprite, 1, scale, scale, rot)
 
     local stack_size = (slot_privates[self].content.stack_size or 1)
     if (slot_privates[self].content.max_stack_size or 1) > 1 and stack_size > 1 then
@@ -518,5 +522,8 @@ return {
   end,
   SetSoundsEnabled = function(enabled)
     sounds_enabled = enabled
+  end,
+  SetAnimationsEnabled = function(enabled)
+    animations_enabled = enabled
   end
 }
