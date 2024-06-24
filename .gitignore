@@ -2,3 +2,4 @@ node_modules
 dist
 compatibility.xml
 stuff.lua
+TODO.md

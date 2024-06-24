@@ -26,6 +26,12 @@ mod_settings =
 		scope = MOD_SETTING_SCOPE_RUNTIME,
 	},
 	{
+		id = "enable_spell_refresh_in_storage",
+		ui_name = "Spell refresh affects stored spells",
+		value_default = false,
+		scope = MOD_SETTING_SCOPE_RUNTIME,
+	},
+	{
 		id = "num_rows",
 		ui_name = "Amount of rows",
 		ui_description = "How many extra spell inventory rows there should be.",

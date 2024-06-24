@@ -20,9 +20,20 @@ local spell_types = {
   { type = ACTION_TYPE_PASSIVE, name = GameTextGetTranslatedOrNot("$inventory_actiontype_passive"), icon = "data/ui_gfx/inventory/item_bg_passive.png" },
 }
 
--- if ModIsEnabled("mnee") then
--- 	ModLuaFileAppend("mods/mnee/bindings.lua", "mods/AdvancedSpellInventory/files/mnee.lua")
--- end
+-- Add script to spell refresh
+do
+  local file_path = "data/entities/particles/image_emitters/spell_refresh_effect.xml"
+  local content = ModTextFileGetContent(file_path)
+  ModTextFileSetContent(file_path, content:gsub([[</Entity>]], [[
+    <LuaComponent
+      script_source_file="mods/AdvancedSpellInventory/files/spell_refresh_add.lua"
+      execute_every_n_frame="-1"
+      execute_on_added="1"
+      remove_after_executed="1"
+    ></LuaComponent>
+</Entity>
+  ]]))
+end
 
 local sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
 EZInventory.SetSoundsEnabled(sounds_enabled)
@@ -64,12 +75,14 @@ local search_filter = ""
 local filter_by_type
 local num_rows = ModSettingGet("AdvancedSpellInventory.num_rows")
 local auto_storage = ModSettingGet("AdvancedSpellInventory.auto_storage")
+local enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
 
 function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
     button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
     button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
     sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
+    enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
     EZInventory.SetSoundsEnabled(sounds_enabled)
     EZInventory.UpdateCustomScreenResolution()
   end
@@ -643,6 +656,16 @@ function OnWorldPostUpdate()
 
   if has_spell_inventory_changed() then
     update_slots()
+  end
+
+  -- Refresh spells in spell storage if spell refresh is picked up
+  if enable_spell_refresh_in_storage and GlobalsGetValue("AdvancedSpellInventory_spells_refreshed", "0") == "1" then
+    GlobalsSetValue("AdvancedSpellInventory_spells_refreshed", "0")
+    for i, slot in ipairs(storage_slots) do
+      if slot.content then
+        slot.content.spell.uses_remaining = action_lookup[slot.content.spell.action_id].max_uses or -1
+      end
+    end
   end
 
   local id = 1

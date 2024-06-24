@@ -1,3 +1,6 @@
+UNRELEASED:
+- Add setting for refreshing spells in storage when picking up spell refresh
+
 v0.3.0:
 - Add sounds and setting to turn them off again
 - Make quick-move from main to storage prefer stacking over placing them in a free slot
