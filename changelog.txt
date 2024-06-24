@@ -1,5 +1,6 @@
 UNRELEASED:
 - Add setting for refreshing spells in storage when picking up spell refresh
+- Add back keybind support with M-Néé
 
 v0.3.0:
 - Add sounds and setting to turn them off again

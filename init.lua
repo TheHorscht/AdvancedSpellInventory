@@ -20,6 +20,11 @@ local spell_types = {
   { type = ACTION_TYPE_PASSIVE, name = GameTextGetTranslatedOrNot("$inventory_actiontype_passive"), icon = "data/ui_gfx/inventory/item_bg_passive.png" },
 }
 
+local function is_keybind_down() return false end
+if ModIsEnabled("mnee") then
+	ModLuaFileAppend("mods/mnee/bindings.lua", "mods/AdvancedSpellInventory/files/mnee.lua")
+end
+
 -- Add script to spell refresh
 do
   local file_path = "data/entities/particles/image_emitters/spell_refresh_effect.xml"
@@ -545,12 +550,17 @@ end
 
 function OnPlayerSpawned(player)
   frame_player_spawned = GameGetFrameNum()
+  if ModIsEnabled("mnee") then
+    function is_keybind_down()
+      return get_binding_pressed("AdvSpellInv", "toggle")
+    end
+  end
 end
 
 function OnWorldPostUpdate()
   -- Run this 1 frame after player has spawned
   if frame_player_spawned == GameGetFrameNum() - 1 then
-    -- dofile_once("mods/mnee/lib.lua")
+    dofile_once("mods/mnee/lib.lua")
     -- Do this here so mods have enough time to do their gun_actions.lua mod appends
     dofile_once("data/scripts/gun/gun_actions.lua")
     EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
@@ -693,8 +703,8 @@ function OnWorldPostUpdate()
   local inventory_bags_open = GlobalsGetValue("InventoryBags_is_open", "0") ~= "0"
 	-- Toggle it open/closed
 	if player and not inventory_open and not inventory_bags_open
-    and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png")) then
-		-- or ModIsEnabled("mnee") and get_binding_pressed("AdvSpellInv", "toggle")) then
+    and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png"))
+		or is_keybind_down() then
 		open = not open
 		GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
     play_ui_sound("inventory_" .. (open and "open" or "close"))
