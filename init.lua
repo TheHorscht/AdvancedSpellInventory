@@ -466,6 +466,10 @@ end
 
 local previous_spells
 local function has_spell_inventory_changed()
+  local player = EntityGetWithTag("player_unit")[1]
+  if not player then
+    return false
+  end
   local spells = get_spells_in_inventory()
   local _previous_spells = previous_spells
   previous_spells = spells
@@ -476,6 +480,9 @@ local function has_spell_inventory_changed()
     return true
   end
   for i=1, #spells do
+    if spells[i].entity_id ~= _previous_spells[i].entity_id then
+      return true
+    end
     if spells[i].action_id ~= _previous_spells[i].action_id then
       return true
     end
