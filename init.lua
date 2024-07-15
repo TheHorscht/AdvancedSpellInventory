@@ -561,7 +561,6 @@ function OnPlayerSpawned(player)
       return get_binding_pressed("AdvSpellInv", "toggle")
     end
   end
-  GamePickUpInventoryItem(player, EntityLoad("data/entities/animals/boss_centipede/sampo.xml", 0, 0), false)
 end
 
 local function button(gui, new_id, text, active)
