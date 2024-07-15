@@ -313,6 +313,7 @@ function Slot__mt:MoveContent(target_slot, skip_check)
 
   -- If we can't even fit our stack size into target slot, split instead of moving
   local max_target_stack_size = target_slot.data.get_max_stack_size(self, self_content)
+  -- TODO: I don't think this works properly
   if max_target_stack_size < self_content.stack_size then
     self:SplitContent(target_slot, max_target_stack_size)
     return "split"
