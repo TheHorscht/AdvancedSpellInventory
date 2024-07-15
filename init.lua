@@ -74,7 +74,8 @@ local origin_x, origin_y =
   + tonumber(MagicNumbersGetValue("UI_BARS_POS_X")),
   tonumber(MagicNumbersGetValue("UI_BARS_POS_Y")) --170, 48
 local full_inventory_slots_x, full_inventory_slots_y
-local slot_width, slot_height = 20, 20
+local filter_panel_height
+local slot_width, slot_height
 local sorting_function = sorting_functions.alphabetical
 local search_filter = ""
 local filter_by_type
@@ -191,7 +192,7 @@ local function draw_other_tooltip(gui, x, y, z, content)
   GuiEndAutoBoxNinePiece(gui)
   local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
   if not tooltip_size_cache[content] then
-    tooltip_size_cache[content] = { width = width - 20, height = height }
+    tooltip_size_cache[content] = { width = width - slot_width, height = height }
   end
   GuiIdPop(gui)
 end
@@ -239,21 +240,19 @@ end
 local function render_after(self, slot, gui, new_id, x, y, z, scale)
   if self.spell.action_id then
     GuiZSetForNextWidget(gui, z - 0.5)
-    GuiImage(gui, new_id(), x - 2, y - 2, EZWand.get_spell_bg(self.spell.action_id), 1, 1, 1)
+    GuiImage(gui, new_id(), x, y, EZWand.get_spell_bg(self.spell.action_id), 1, 1, 1)
   end
   if self.spell.uses_remaining >= 0 then
     GuiZSetForNextWidget(gui, z - 2)
-    GuiColorSetForNextWidget(gui, 0.8, 0.8, 0.8, 1)
-    GuiText(gui, x, y, self.spell.uses_remaining, 1, "data/fonts/font_small_numbers.xml", true)
+    GuiColorSetForNextWidget(gui, 0.9, 0.9, 0.9, 1)
+    GuiText(gui, x + 2, y + 2, self.spell.uses_remaining, 1, "data/fonts/font_small_numbers.xml", true)
   end
   -- Grey it out if filters are active
   if not does_spell_match_filter(search_filter or "", self.spell) then
     GuiZSetForNextWidget(gui, z - 2.1)
-    local offset_x, offset_y = 0, 0
-    if not self.spell.action_id then
-      offset_x, offset_y = 1, 1
-    end
-    GuiImage(gui, new_id(), x + offset_x - 2, y + offset_y - 2, "mods/AdvancedSpellInventory/files/grey.png", 1, scale, scale)
+    local scale_x = slot.width / 20
+    local scale_y = slot.height / 20
+    GuiImage(gui, new_id(), x, y, "mods/AdvancedSpellInventory/files/grey.png", 1, scale_x, scale_y)
   end
 end
 
@@ -562,9 +561,144 @@ function OnPlayerSpawned(player)
       return get_binding_pressed("AdvSpellInv", "toggle")
     end
   end
+  GamePickUpInventoryItem(player, EntityLoad("data/entities/animals/boss_centipede/sampo.xml", 0, 0), false)
+end
+
+local function button(gui, new_id, text, active)
+  local w, h = GuiGetTextDimensions(gui, text)
+  GuiText(gui, 2, 0, "")
+  local _, _, _, tx, ty = GuiGetPreviousWidgetInfo(gui)
+  tx = tx - 1
+  GuiImageNinePiece(gui, new_id(), tx - 2, ty, w + 7, h + 2, 0, "data/debug/whitebox.png")
+  local clicked, _, hovered = GuiGetPreviousWidgetInfo(gui)
+  GuiZSetForNextWidget(gui, 20 - 1)
+  GuiImageNinePiece(gui, new_id(), tx + 3, ty + 2, w - 1, h - 4, 1, "mods/AdvancedSpellInventory/files/button_9piece" .. (active and "_active" or "") .. ".png")
+  if hovered then
+    GuiColorSetForNextWidget(gui, 0.95, 0.95, 0.7, 1)
+  end
+  GuiText(gui, 0, 0, text)
+  GuiText(gui, 1, 0, "")
+  return clicked
+end
+
+local function render_filter_panel(gui, new_id, origin_x, origin_y)
+  local total_height = 0
+  -- Sort buttons
+  GuiLayoutBeginHorizontal(gui, origin_x, origin_y, true)
+  if button(gui, new_id, "Sort") then
+    sort_spells_in_storage()
+  end
+  if sort_order == "ascending" then
+    GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
+  end
+  if GuiImageButton(gui, new_id(), 1, -1, "", "mods/AdvancedSpellInventory/files/arrow_up.png") then
+    sort_order = "ascending"
+  end
+  if sort_order == "descending" then
+    GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
+  end
+  if GuiImageButton(gui, new_id(), -9, 7, "", "mods/AdvancedSpellInventory/files/arrow_down.png") then
+    sort_order = "descending"
+  end
+  GuiText(gui, 2, 0, "Sort by:")
+  if button(gui, new_id, "A-Z", sorting_function == sorting_functions.alphabetical) then
+    sorting_function = sorting_functions.alphabetical
+  end
+  if button(gui, new_id, "Uses remaining", sorting_function == sorting_functions.uses_remaining) then
+    sorting_function = sorting_functions.uses_remaining
+  end
+  local v = ""
+  if input_focused then
+    GuiAnimateBegin(gui)
+    GuiAnimateAlphaFadeIn(gui, new_id(), 0, 0, true)
+    GuiBeginAutoBox(gui)
+    GuiOptionsAddForNextWidget(gui, GUI_OPTION.Layout_NoLayouting)
+    GuiZSetForNextWidget(gui, -99999999999)
+    GuiBeginScrollContainer(gui, new_id(), EZMouse.screen_x, EZMouse.screen_y, 10, 10, false, 0, 0)
+    GuiEndAutoBoxNinePiece(gui)
+    GuiAnimateEnd(gui)
+
+    v = GuiTextInput(gui, new_id(), 0, 0, "", 0, 8)
+
+    GuiEndScrollContainer(gui)
+  end
+  -- Input field with logic to disable inputs and have backspace-holding delete functionality
+  if input_focused then
+    GuiColorSetForNextWidget(gui, 0.9, 0.9, 0, 1)
+  end
+  GuiText(gui, 1, 0, "Filter:")
+  local new_search_filter = GuiTextInput(gui, new_id(), 0, 0, search_filter or "", 54, 8)
+  local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+  if InputIsMouseButtonJustDown(Mouse_right) and hovered then
+    new_search_filter = ""
+    search_filter = ""
+  end
+  if #new_search_filter < 8 then
+    new_search_filter = new_search_filter .. v
+  end
+  if InputIsKeyJustDown(Key_BACKSPACE) then
+    input_backspace_down_frame = GameGetFrameNum()
+    new_search_filter = new_search_filter:gsub(".?$", "")
+  elseif input_focused and InputIsKeyDown(Key_BACKSPACE) and input_backspace_down_frame + 15 < GameGetFrameNum() and GameGetFrameNum() % 5 == 0 then
+    new_search_filter = new_search_filter:gsub(".?$", "")
+  end
+  if new_search_filter ~= search_filter then
+    search_filter_changed = true
+  end
+  if input_focused then
+    search_filter = new_search_filter
+  end
+  if InputIsMouseButtonJustDown(Mouse_left) then
+    input_focused = hovered
+  elseif InputIsKeyJustDown(Key_RETURN) then
+    input_focused = false
+  end
+  input_hovered = hovered
+  GuiLayoutEnd(gui)
+  -- Second row, filter by spell type
+  local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+  total_height = total_height + height + 2
+  GuiLayoutBeginHorizontal(gui, origin_x - 1, origin_y + height + 2, true)
+  local text = "Filter spells by type:"
+  local text_width, text_height = GuiGetTextDimensions(gui, text)
+  GuiText(gui, 4, (slot_height - text_height) / 2, text)
+  for i, spell_type in ipairs(spell_types) do
+    local scale = slot_width / 20
+    GuiImage(gui, new_id(), 0, 0, spell_type.icon, 1, scale, scale)
+    local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+    if spell_type.type == filter_by_type then
+      GuiOptionsAddForNextWidget(gui, GUI_OPTION.Layout_NoLayouting)
+      GuiColorSetForNextWidget(gui, 0, 1, 0, 1)
+      local checkbox_w, checkbox_h = GuiGetImageDimensions(gui, "data/debug/sui_checkbox_overlay.png", scale)
+      GuiImage(gui, new_id(), x - (checkbox_w - slot_width) / 2, y - (checkbox_h - slot_height) / 2, "data/debug/sui_checkbox_overlay.png", 1, scale, scale)
+    end
+    if clicked then
+      filter_by_type = spell_type.type
+    end
+    GuiTooltip(gui, spell_type.name, "")
+  end
+  GuiLayoutEnd(gui)
+  local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+  total_height = total_height + height
+  return total_height
 end
 
 function OnWorldPostUpdate()
+  local id = 1
+  local function new_id()
+    id = id + 1
+    return id
+  end
+
+  gui = gui or GuiCreate()
+  GuiStartFrame(gui)
+
+  EZMouse.update(gui)
+
+  if not slot_width then
+    slot_width, slot_height = GuiGetImageDimensions(gui, "data/ui_gfx/inventory/full_inventory_box.png", 1)
+  end
+
   -- Run this 1 frame after player has spawned
   if frame_player_spawned == GameGetFrameNum() - 1 then
     dofile_once("mods/mnee/lib.lua")
@@ -574,6 +708,10 @@ function OnWorldPostUpdate()
     for i, action in ipairs(actions) do
       action_lookup[action.id] = action
     end
+
+    -- Render the middle panel part once to calculate its size, jank yea yea
+    filter_panel_height = render_filter_panel(gui, new_id, 0, -100000)
+
     if not slots then
       slots = {}
       full_inventory_slots_x, full_inventory_slots_y = get_inventory_size()
@@ -581,8 +719,8 @@ function OnWorldPostUpdate()
         for x=1, full_inventory_slots_x do
           local idx = x + (y-1) * full_inventory_slots_x
           slots[idx] = EZInventory.Slot({
-            x = origin_x + (x-1) * 20,
-            y = origin_y + (y-1) * 20,
+            x = origin_x + (x-1) * slot_width,
+            y = origin_y + (y-1) * slot_height,
             data = {
               slot_x = x,
               slot_y = y,
@@ -594,8 +732,8 @@ function OnWorldPostUpdate()
                 return 1
               end
             },
-            width = 20,
-            height = 20,
+            width = slot_width,
+            height = slot_height,
           })
           slots[idx]:AddEventListener("shift_click", function(self, ev)
             if self.content then
@@ -624,8 +762,8 @@ function OnWorldPostUpdate()
       for y=1, num_rows do
         for x=1, full_inventory_slots_x do
           local slot = EZInventory.Slot({
-            x = origin_x + (x-1) * 20,
-            y = origin_y + (y-1) * 20 + (full_inventory_slots_y * 20) + 40,
+            x = origin_x + (x-1) * slot_width,
+            y = origin_y + (y-1) * slot_height + (full_inventory_slots_y * slot_height) + filter_panel_height + 4,
             data = {
               is_storage = true,
               slot_x = x,
@@ -637,8 +775,8 @@ function OnWorldPostUpdate()
                 return math.huge
               end
             },
-            width = 20,
-            height = 20,
+            width = slot_width,
+            height = slot_height,
           })
           slot:AddEventListener("shift_click", function(self, ev)
             if self.content then
@@ -684,17 +822,6 @@ function OnWorldPostUpdate()
       end
     end
   end
-
-  local id = 1
-  local function new_id()
-    id = id + 1
-    return id
-  end
-
-  gui = gui or GuiCreate()
-  GuiStartFrame(gui)
-
-  EZMouse.update(gui)
 
   -- Allow speed clicking
   GuiOptionsAdd(gui, GUI_OPTION.HandleDoubleClickAsClick)
@@ -756,7 +883,7 @@ function OnWorldPostUpdate()
     -- Title "Spells"
     GuiText(gui, origin_x, origin_y - 2 - text_h + 1, title_text)
     local panel_width = full_inventory_slots_x * slot_width - 2
-    local panel_height = full_inventory_slots_y * slot_height + (num_rows + 2) * slot_height - 2
+    local panel_height = full_inventory_slots_y * slot_height + num_rows * slot_height + filter_panel_height + 2
     -- Container with border
     GuiZSetForNextWidget(gui, 20)
     GuiImageNinePiece(gui, new_id(), origin_x + 1, origin_y + 1, panel_width, panel_height, 1, "mods/AdvancedSpellInventory/files/container_9piece.png", "mods/AdvancedSpellInventory/files/container_9piece.png")
@@ -767,112 +894,7 @@ function OnWorldPostUpdate()
       GuiZSetForNextWidget(gui, 0)
       GuiImage(gui, new_id(), mx - 100, my - 100, "data/debug/whitebox.png", 0.0001, 10, 10)
     end
-    -- Sort buttons
-    local function button(text, active)
-      local w, h = GuiGetTextDimensions(gui, text)
-      GuiText(gui, 2, 0, "")
-      local _, _, _, tx, ty = GuiGetPreviousWidgetInfo(gui)
-      GuiImageNinePiece(gui, new_id(), tx - 2, ty, w + 7, h + 2, 0, "data/debug/whitebox.png")
-      local clicked, _, hovered = GuiGetPreviousWidgetInfo(gui)
-      GuiZSetForNextWidget(gui, 20 - 1)
-      GuiImageNinePiece(gui, new_id(), tx, ty, w + 5, h, 1, "data/ui_gfx/decorations/9piece0" .. (not active and "_gray" or "") .. ".png")
-      if hovered then
-        GuiColorSetForNextWidget(gui, 0.95, 0.95, 0.7, 1)
-      end
-      GuiText(gui, 1, 0, text)
-      GuiText(gui, 4, 0, "")
-      return clicked
-    end
-    GuiLayoutBeginHorizontal(gui, origin_x + 2, origin_y + (full_inventory_slots_y * 20) + 4, true)
-    if button("Sort") then
-      sort_spells_in_storage()
-    end
-    if sort_order == "ascending" then
-      GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
-    end
-    if GuiImageButton(gui, new_id(), 0, -1, "", "mods/AdvancedSpellInventory/files/arrow_up.png") then
-      sort_order = "ascending"
-    end
-    if sort_order == "descending" then
-      GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
-    end
-    if GuiImageButton(gui, new_id(), -9, 7, "", "mods/AdvancedSpellInventory/files/arrow_down.png") then
-      sort_order = "descending"
-    end
-    GuiText(gui, 2, 0, "Sort by:")
-    if button("A-Z", sorting_function == sorting_functions.alphabetical) then
-      sorting_function = sorting_functions.alphabetical
-    end
-    if button("Uses remaining", sorting_function == sorting_functions.uses_remaining) then
-      sorting_function = sorting_functions.uses_remaining
-    end
-    local v = ""
-    if input_focused then
-      GuiAnimateBegin(gui)
-      GuiAnimateAlphaFadeIn(gui, new_id(), 0, 0, true)
-      GuiBeginAutoBox(gui)
-      GuiOptionsAddForNextWidget(gui, GUI_OPTION.Layout_NoLayouting)
-      GuiZSetForNextWidget(gui, -99999999999)
-      GuiBeginScrollContainer(gui, new_id(), EZMouse.screen_x, EZMouse.screen_y, 10, 10, false, 0, 0)
-      GuiEndAutoBoxNinePiece(gui)
-      GuiAnimateEnd(gui)
-
-      v = GuiTextInput(gui, new_id(), 0, 0, "", 0, 8)
-
-      GuiEndScrollContainer(gui)
-    end
-    -- Input field with logic to disable inputs and have backspace-holding delete functionality
-    if input_focused then
-      GuiColorSetForNextWidget(gui, 0.9, 0.9, 0, 1)
-    end
-    GuiText(gui, 0, 0, "Filter:")
-    local new_search_filter = GuiTextInput(gui, new_id(), 0, 0, search_filter or "", 54, 8)
-    local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
-    if InputIsMouseButtonJustDown(Mouse_right) and hovered then
-      new_search_filter = ""
-      search_filter = ""
-    end
-    if #new_search_filter < 8 then
-      new_search_filter = new_search_filter .. v
-    end
-    if InputIsKeyJustDown(Key_BACKSPACE) then
-      input_backspace_down_frame = GameGetFrameNum()
-      new_search_filter = new_search_filter:gsub(".?$", "")
-    elseif input_focused and InputIsKeyDown(Key_BACKSPACE) and input_backspace_down_frame + 15 < GameGetFrameNum() and GameGetFrameNum() % 5 == 0 then
-      new_search_filter = new_search_filter:gsub(".?$", "")
-    end
-    if new_search_filter ~= search_filter then
-      search_filter_changed = true
-    end
-    if input_focused then
-      search_filter = new_search_filter
-    end
-    if InputIsMouseButtonJustDown(Mouse_left) then
-      input_focused = hovered
-    elseif InputIsKeyJustDown(Key_RETURN) then
-      input_focused = false
-    end
-    input_hovered = hovered
-    GuiLayoutEnd(gui)
-    -- Second row, filter by spell type
-    GuiLayoutBeginHorizontal(gui, origin_x + 1, origin_y + (20 * full_inventory_slots_y) + 19, true)
-    local text = "Filter spells by type:"
-    local text_width, text_height = GuiGetTextDimensions(gui, text)
-    GuiText(gui, 4, (20 - text_height) / 2, text)
-    for i, spell_type in ipairs(spell_types) do
-      GuiImage(gui, new_id(), 0, 0, spell_type.icon, 1, 1, 1)
-      local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
-      if spell_type.type == filter_by_type then
-        GuiOptionsAddForNextWidget(gui, GUI_OPTION.Layout_NoLayouting)
-        GuiColorSetForNextWidget(gui, 0, 1, 0, 1)
-        GuiImage(gui, new_id(), x, y - 5, "data/debug/sui_checkbox_overlay.png", 1, 1, 1)
-      end
-      if clicked then
-        filter_by_type = spell_type.type
-      end
-      GuiTooltip(gui, spell_type.name, "")
-    end
-    GuiLayoutEnd(gui)
+    render_filter_panel(gui, new_id, origin_x + 2, origin_y + (full_inventory_slots_y * slot_height) + 4)
 	end
 
   -- Disable controls if input field is hovered

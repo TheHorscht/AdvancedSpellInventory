@@ -161,7 +161,8 @@ function Slot__mt:RemoveEventListener(event_name, event_listener)
 end
 
 function Slot__mt:Render(gui, new_id)
-  local scale = self.width / 20
+  local slot_sprite_w, slot_sprite_h = GuiGetImageDimensions(gui, "data/ui_gfx/inventory/full_inventory_box.png", 1)
+  local scale = self.width / slot_sprite_w
   if slot_privates[self].content and self.visible then
     local sprite_w, sprite_h = GuiGetImageDimensions(gui, slot_privates[self].content.sprite)
     -- local offset_x, offset_y = 2 * scale, 2 * scale --  (difference between sprite_size and slot_size) / 2
@@ -192,18 +193,18 @@ function Slot__mt:Render(gui, new_id)
       rot = math.sin(GameGetFrameNum() / 6) * 0.05
     end
     GuiZSetForNextWidget(gui, z - 1)
-    GuiImage(gui, new_id(), x + offset_x, y + offset_y, slot_privates[self].content.sprite, 1, scale, scale, rot)
+    GuiImage(gui, new_id(), x - (sprite_w - self.width) / 2,  y - (sprite_h - self.height) / 2, slot_privates[self].content.sprite, 1, 1, 1, rot)
 
     local stack_size = (slot_privates[self].content.stack_size or 1)
     if (slot_privates[self].content.max_stack_size or 1) > 1 and stack_size > 1 then
       GuiZSetForNextWidget(gui, z - 2)
-      GuiColorSetForNextWidget(gui, 0.8, 0.8, 0.8, 1)
+      GuiColorSetForNextWidget(gui, 0.9, 0.9, 0.9, 1)
       local text_width, text_height = GuiGetTextDimensions(gui, tostring(stack_size), 1, 1, "data/fonts/font_small_numbers.xml", true)
       GuiText(gui, x + self.width - text_width - 2, y + self.height - text_height - 2, tostring(stack_size), 1, "data/fonts/font_small_numbers.xml", true)
     end
 
     if slot_privates[self].content.render_after then
-      slot_privates[self].content:render_after(self, gui, new_id, x + offset_x, y + offset_y, z, scale)
+      slot_privates[self].content:render_after(self, gui, new_id, x, y, z, scale)
     end
     -- widgets[slot_privates[self].content]:DebugDraw(gui)
   end

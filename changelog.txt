@@ -1,3 +1,7 @@
+UNRELEASED:
+- Add compatibility with different vanilla slot gfx sizes
+- Change button graphics
+
 v0.4.0:
 - Add setting for refreshing spells in storage when picking up spell refresh
 - Add back keybind support with M-Néé
