@@ -544,6 +544,7 @@ local function drop_content_handler(self, ev)
     end
   end
   self:ClearContent()
+  save_stored_spells()
 end
 
 function string_split(input, sep)

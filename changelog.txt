@@ -1,4 +1,9 @@
-v0.4.1:\n- Add compatibility with different vanilla slot gfx sizes\n- Change button graphics
+v0.4.2:
+- FIX: Storage was not saved after dropping spells into the world
+
+v0.4.1:
+- Add compatibility with different vanilla slot gfx sizes
+- Change button graphics
 
 v0.4.0:
 - Add setting for refreshing spells in storage when picking up spell refresh
