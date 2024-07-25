@@ -1,3 +1,6 @@
+v0.4.3:
+- FIX: Items that aren't spells will no longer be auto-stored when the option is on
+
 v0.4.2:
 - FIX: Storage was not saved after dropping spells into the world
 

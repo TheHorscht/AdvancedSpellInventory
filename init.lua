@@ -401,7 +401,7 @@ local function update_slots()
   end
   for i, spell in ipairs(get_spells_in_inventory() or {}) do
     local did_store_spell = false
-    if auto_storage and spell.item_comp and ComponentGetValue2(spell.item_comp, "mFramePickedUp") == GameGetFrameNum() then
+    if auto_storage and spell.action_id and spell.item_comp and ComponentGetValue2(spell.item_comp, "mFramePickedUp") == GameGetFrameNum() then
       local content = make_content_from_entity(spell.entity_id)
       for i, slot in ipairs(storage_slots or {}) do
         if slot.content == nil then
