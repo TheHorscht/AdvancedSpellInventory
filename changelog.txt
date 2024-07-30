@@ -1,5 +1,8 @@
 UNRELEASED:
 - FIX: Spell uses were restored when dropping spells into world
+- FIX: Unlimited spells perk not updating spell charges in storage
+- FIX: Picking up a spell recharge with unlimited spells perk would restore the charges in storage to normal
+  (this one was just visual since it would get restored to unlimited on equip anyway)
 
 v0.4.3:
 - FIX: Items that aren't spells will no longer be auto-stored when the option is on

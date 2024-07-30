@@ -463,6 +463,38 @@ local function sort_spells_in_storage()
   end
 end
 
+local function has_infinite_spells()
+  local world_entity_id = GameGetWorldStateEntity()
+  if world_entity_id then
+    local worldstate_comp = EntityGetFirstComponentIncludingDisabled(world_entity_id, "WorldStateComponent")
+    if worldstate_comp then
+      return ComponentGetValue2(worldstate_comp, "perk_infinite_spells")
+    end
+  end
+  return false
+end
+
+local function update_spell_uses()
+  for i, slot in ipairs(storage_slots) do
+    if slot.content then
+      if has_infinite_spells() then
+        slot.content.spell.uses_remaining = -1
+      else
+        slot.content.spell.uses_remaining = action_lookup[slot.content.spell.action_id].max_uses or -1
+      end
+    end
+  end
+end
+
+local infinite_spells_last_frame = false
+local function update_storage_if_unlimited_perks()
+  local infinite_spells = has_infinite_spells()
+  if infinite_spells ~= infinite_spells_last_frame then
+    infinite_spells_last_frame = infinite_spells
+    update_spell_uses()
+  end
+end
+
 local previous_spells
 local function has_spell_inventory_changed()
   local player = EntityGetWithTag("player_unit")[1]
@@ -817,6 +849,7 @@ function OnWorldPostUpdate()
     load_stored_spells()
   end
 
+  update_storage_if_unlimited_perks()
   if has_spell_inventory_changed() then
     update_slots()
   end
@@ -824,11 +857,7 @@ function OnWorldPostUpdate()
   -- Refresh spells in spell storage if spell refresh is picked up
   if enable_spell_refresh_in_storage and GlobalsGetValue("AdvancedSpellInventory_spells_refreshed", "0") == "1" then
     GlobalsSetValue("AdvancedSpellInventory_spells_refreshed", "0")
-    for i, slot in ipairs(storage_slots) do
-      if slot.content then
-        slot.content.spell.uses_remaining = action_lookup[slot.content.spell.action_id].max_uses or -1
-      end
-    end
+    update_spell_uses()
   end
 
   -- Allow speed clicking
