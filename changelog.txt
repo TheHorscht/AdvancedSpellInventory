@@ -1,3 +1,6 @@
+UNRELEASED:
+- FIX: Spell uses were restored when dropping spells into world
+
 v0.4.3:
 - FIX: Items that aren't spells will no longer be auto-stored when the option is on
 

@@ -522,6 +522,10 @@ local function drop_content_handler(self, ev)
           EntitySetComponentsWithTagEnabled(entity_id, "enabled_in_inventory", false)
           EntitySetComponentsWithTagEnabled(entity_id, "item_unidentified", false)
         end
+        local item_comp = EntityGetFirstComponentIncludingDisabled(entity_id, "ItemComponent")
+        if item_comp then
+          ComponentSetValue2(item_comp, "uses_remaining", self.content.spell.uses_remaining)
+        end
       end
     else
       local entity_id = self.content.spell.entity_id
@@ -540,6 +544,10 @@ local function drop_content_handler(self, ev)
         EntitySetComponentsWithTagEnabled(entity_id, "enabled_in_world", true)
         EntitySetComponentsWithTagEnabled(entity_id, "enabled_in_inventory", false)
         EntitySetComponentsWithTagEnabled(entity_id, "item_unidentified", false)
+      end
+      local item_comp = EntityGetFirstComponentIncludingDisabled(entity_id, "ItemComponent")
+      if item_comp then
+        ComponentSetValue2(item_comp, "uses_remaining", self.content.spell.uses_remaining)
       end
     end
   end
