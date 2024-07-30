@@ -810,7 +810,12 @@ function OnWorldPostUpdate()
               slot_y = y,
               x = x,
               y = y,
-              move_check = function(self, target_slot) return true end,
+              move_check = function(self, target_slot)
+                if not target_slot.data.is_storage and target_slot.content and self.content.stack_size > 1 then
+                  return false
+                end
+                return true
+              end,
               get_max_stack_size = function(self, content)
                 return math.huge
               end
