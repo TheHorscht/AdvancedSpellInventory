@@ -2,6 +2,7 @@ dofile_once("data/scripts/lib/utilities.lua")
 dofile_once("data/scripts/debug/keycodes.lua")
 dofile_once("data/scripts/lib/coroutines.lua")
 dofile_once("data/scripts/gun/gun_enums.lua")
+dofile_once("data/scripts/debug/keycodes.lua")
 dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/init.lua")("mods/AdvancedSpellInventory/lib/EZInventory/")
 local EZWand
 local EZInventory = dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/EZInventory.lua")
@@ -50,7 +51,6 @@ local function play_ui_sound(name)
   GamePlaySound("data/audio/Desktop/ui.bank", "ui/" .. name, cx, cy)
 end
 
-local sort_order = "descending"
 local sorting_functions
 sorting_functions = {
   alphabetical = function(a, b)
@@ -62,6 +62,14 @@ sorting_functions = {
     -- First sort by uses remaining, and if they're equal alphabetically
     if a.spell.uses_remaining < b.spell.uses_remaining then return true end
     if a.spell.uses_remaining > b.spell.uses_remaining then return false end
+    return sorting_functions.alphabetical(a, b)
+  end,
+  type = function(a, b)
+    -- First sort by uses remaining, and if they're equal alphabetically
+    local type_a = action_lookup[a.spell.action_id].type
+    local type_b = action_lookup[b.spell.action_id].type
+    if type_a < type_b then return true end
+    if type_a > type_b then return false end
     return sorting_functions.alphabetical(a, b)
   end,
 }
@@ -76,7 +84,6 @@ local origin_x, origin_y =
 local full_inventory_slots_x, full_inventory_slots_y
 local filter_panel_height
 local slot_width, slot_height
-local sorting_function = sorting_functions.alphabetical
 local search_filter = ""
 local filter_by_type
 local num_rows = ModSettingGet("AdvancedSpellInventory.num_rows")
@@ -427,7 +434,7 @@ local function update_slots()
   end
 end
 
-local function sort_spells_in_storage()
+local function sort_spells_in_storage(func, sort_order)
   local contents = {}
   for i, slot in ipairs(storage_slots) do
     if slot.content then
@@ -451,9 +458,9 @@ local function sort_spells_in_storage()
   end
   table.sort(contents, function(a, b)
     if sort_order == "ascending" then
-      return sorting_function(a, b)
+      return func(a, b)
     elseif sort_order == "descending" then
-      return sorting_function(b, a)
+      return func(b, a)
     end
     error("You misspelled sort_order, stringly typed strikes again")
     return true
@@ -611,6 +618,8 @@ local function button(gui, new_id, text, active)
   tx = tx - 1
   GuiImageNinePiece(gui, new_id(), tx - 2, ty, w + 7, h + 2, 0, "data/debug/whitebox.png")
   local clicked, _, hovered = GuiGetPreviousWidgetInfo(gui)
+  -- GuiGetPreviousWidgetInfo does not return right click for GuiImageNinePiece, so get it manually
+  local right_clicked = hovered and InputIsMouseButtonJustDown(Mouse_right)
   GuiZSetForNextWidget(gui, 20 - 1)
   GuiImageNinePiece(gui, new_id(), tx + 3, ty + 2, w - 1, h - 4, 1, "mods/AdvancedSpellInventory/files/button_9piece" .. (active and "_active" or "") .. ".png")
   if hovered then
@@ -618,34 +627,24 @@ local function button(gui, new_id, text, active)
   end
   GuiText(gui, 0, 0, text)
   GuiText(gui, 1, 0, "")
-  return clicked
+  return clicked, right_clicked
 end
 
 local function render_filter_panel(gui, new_id, origin_x, origin_y)
   local total_height = 0
   -- Sort buttons
   GuiLayoutBeginHorizontal(gui, origin_x, origin_y, true)
-  if button(gui, new_id, "Sort") then
-    sort_spells_in_storage()
-  end
-  if sort_order == "ascending" then
-    GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
-  end
-  if GuiImageButton(gui, new_id(), 1, -1, "", "mods/AdvancedSpellInventory/files/arrow_up.png") then
-    sort_order = "ascending"
-  end
-  if sort_order == "descending" then
-    GuiColorSetForNextWidget(gui, 0, 0.7, 0, 1)
-  end
-  if GuiImageButton(gui, new_id(), -9, 7, "", "mods/AdvancedSpellInventory/files/arrow_down.png") then
-    sort_order = "descending"
-  end
-  GuiText(gui, 2, 0, "Sort by:")
-  if button(gui, new_id, "A-Z", sorting_function == sorting_functions.alphabetical) then
-    sorting_function = sorting_functions.alphabetical
-  end
-  if button(gui, new_id, "Uses remaining", sorting_function == sorting_functions.uses_remaining) then
-    sorting_function = sorting_functions.uses_remaining
+  GuiText(gui, 0, 0, " Sort by: ")
+  local o = {
+    ["A-Z"] = sorting_functions.alphabetical,
+    ["Uses"] = sorting_functions.uses_remaining,
+    ["Type"] = sorting_functions.type,
+  }
+  for name, func in pairs(o) do
+    local clicked, right_clicked = button(gui, new_id, name, false)
+    if clicked or right_clicked then
+      sort_spells_in_storage(func, clicked and "ascending" or "descending")
+    end
   end
   local v = ""
   if input_focused then
@@ -666,7 +665,7 @@ local function render_filter_panel(gui, new_id, origin_x, origin_y)
   if input_focused then
     GuiColorSetForNextWidget(gui, 0.9, 0.9, 0, 1)
   end
-  GuiText(gui, 1, 0, "Filter:")
+  GuiText(gui, 1, 0, " Filter:")
   local new_search_filter = GuiTextInput(gui, new_id(), 0, 0, search_filter or "", 54, 8)
   local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
   if InputIsMouseButtonJustDown(Mouse_right) and hovered then
