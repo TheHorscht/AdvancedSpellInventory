@@ -49,6 +49,13 @@ mod_settings =
 		scope = MOD_SETTING_SCOPE_RUNTIME_RESTART,
 	},
 	{
+		id = "opening_inv_closes_spell_inv",
+		ui_name = "Close when opening Inventory",
+		ui_description = "Will close the Advanced Spell Inventory when opening the main inventory,\ninstead of just temporarily hiding it while the main inventory is open.",
+		value_default = false,
+		scope = MOD_SETTING_SCOPE_RUNTIME,
+	},
+	{
 		not_setting = true,
 		ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
 			if GuiButton(gui, im_id, 0, 0, "[ Reset button position ]") then

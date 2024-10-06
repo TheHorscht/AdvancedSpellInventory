@@ -1,3 +1,6 @@
+UNRELEASED:
+- Add setting for closing spell inventory when inventory is opened
+
 v0.5.0:
 - Add sorting by spell type
 - Removed "Sort" button, sorting now happens instantly on clicking the corresponding sort buttons, left click ascending, right click descending

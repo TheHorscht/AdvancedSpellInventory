@@ -89,6 +89,7 @@ local filter_by_type
 local num_rows = ModSettingGet("AdvancedSpellInventory.num_rows")
 local auto_storage = ModSettingGet("AdvancedSpellInventory.auto_storage")
 local enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
+local opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.opening_inv_closes_spell_inv")
 
 function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
@@ -96,6 +97,7 @@ function OnPausedChanged(is_paused, is_main_menu)
     button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
     sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
     enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
+    opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.opening_inv_closes_spell_inv")
     EZInventory.SetSoundsEnabled(sounds_enabled)
     EZInventory.UpdateCustomScreenResolution()
   end
@@ -723,6 +725,10 @@ local function render_filter_panel(gui, new_id, origin_x, origin_y)
 end
 
 function OnWorldPostUpdate()
+  if opening_inv_closes_spell_inv and GameIsInventoryOpen() then
+    open = false
+  end
+
   local id = 1
   local function new_id()
     id = id + 1
