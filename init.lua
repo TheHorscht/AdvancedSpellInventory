@@ -567,6 +567,9 @@ local function drop_content_handler(self, ev)
         if item_comp then
           ComponentSetValue2(item_comp, "uses_remaining", self.content.spell.uses_remaining)
         end
+        if ModIsEnabled("quant.ew") then
+          CrossCall("ew_thrown", entity_id)
+        end
       end
     else
       local entity_id = self.content.spell.entity_id
@@ -589,6 +592,9 @@ local function drop_content_handler(self, ev)
       local item_comp = EntityGetFirstComponentIncludingDisabled(entity_id, "ItemComponent")
       if item_comp then
         ComponentSetValue2(item_comp, "uses_remaining", self.content.spell.uses_remaining)
+      end
+      if ModIsEnabled("quant.ew") then
+        CrossCall("ew_thrown", entity_id)
       end
     end
   end

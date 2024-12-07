@@ -1,5 +1,6 @@
-UNRELEASED:
+v0.6.0:
 - Add setting for closing spell inventory when inventory is opened
+- Add some compatibility with Entangled Worlds when dropping spells from inv/storage
 
 v0.5.0:
 - Add sorting by spell type
