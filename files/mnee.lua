@@ -6,4 +6,11 @@ bindings["AdvSpellInv"] = {
 			b = 1,
 		},
 	},
+	dump = {
+		name = "Dump",
+		desc = "Dumps all spells from active wand to storage.",
+		keys = {
+			v = 1,
+		},
+	},
 }

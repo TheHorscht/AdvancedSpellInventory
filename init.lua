@@ -4,6 +4,9 @@ dofile_once("data/scripts/lib/coroutines.lua")
 dofile_once("data/scripts/gun/gun_enums.lua")
 dofile_once("data/scripts/debug/keycodes.lua")
 dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/init.lua")("mods/AdvancedSpellInventory/lib/EZInventory/")
+
+ModRegisterAudioEventMappings("mods/AdvancedSpellInventory/audio/GUIDs.txt")
+
 local EZWand
 local EZInventory = dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/EZInventory.lua")
 local EZMouse = dofile("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/EZMouse.lua")("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/")
@@ -22,8 +25,17 @@ local spell_types = {
 }
 
 local function is_keybind_down() return false end
+local function is_dump_keybind_down() return false end
 if ModIsEnabled("mnee") then
 	ModLuaFileAppend("mods/mnee/bindings.lua", "mods/AdvancedSpellInventory/files/mnee.lua")
+end
+
+local function is_wand(entity)
+	local ability_component = EntityGetFirstComponentIncludingDisabled(entity, "AbilityComponent")
+	if not ability_component then
+		return false
+	end
+	return ComponentGetValue2(ability_component, "use_gun_script") == true
 end
 
 -- Add script to spell refresh
@@ -616,6 +628,9 @@ function OnPlayerSpawned(player)
     function is_keybind_down()
       return get_binding_pressed("AdvSpellInv", "toggle")
     end
+    function is_dump_keybind_down()
+      return get_binding_pressed("AdvSpellInv", "dump")
+    end
   end
 end
 
@@ -888,19 +903,56 @@ function OnWorldPostUpdate()
   local player = EntityGetWithTag("player_unit")[1]
 	local inventory_open = is_inventory_open()
   local inventory_bags_open = GlobalsGetValue("InventoryBags_is_open", "0") ~= "0"
-	-- Toggle it open/closed
-	if player and not inventory_open and not inventory_bags_open
-    and (GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/gui_button.png"))
-		or is_keybind_down() then
-		open = not open
-		GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
-    play_ui_sound("inventory_" .. (open and "open" or "close"))
-	end
-
-  local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
-  if hovered and InputIsMouseButtonDown(Mouse_right) then
-    dragging_button = true
+	if player then
+    local button_clicked = false
+    if not inventory_open and not inventory_bags_open then
+      local image = InputIsKeyDown(Key_LSHIFT) and "dump_button.png" or "gui_button.png"
+      button_clicked = GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/" .. image)
+      local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
+      if hovered and InputIsMouseButtonDown(Mouse_right) then
+        dragging_button = true
+      end
+      if InputIsKeyDown(Key_LSHIFT) then
+        GuiTooltip(gui, "Take a dump", "Dump all spells of currently active wand to spell storage")
+      end
+    end
+    -- Toggle it open/closed
+    if is_keybind_down() or (not InputIsKeyDown(Key_LSHIFT) and button_clicked) then
+      open = not open
+      GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
+      play_ui_sound("inventory_" .. (open and "open" or "close"))
+    elseif is_dump_keybind_down() or (InputIsKeyDown(Key_LSHIFT) and button_clicked) then
+        local inventory_2_comp = EntityGetFirstComponentIncludingDisabled(player, "Inventory2Component")
+        if inventory_2_comp then
+          local active_wand_entity_id = ComponentGetValue2(inventory_2_comp, "mActiveItem")
+          if is_wand(active_wand_entity_id) then
+            for i, action_entity_id in ipairs(EntityGetAllChildren(active_wand_entity_id) or {}) do
+              for i, slot in ipairs(storage_slots or {}) do
+                local did_store_spell = false
+                local content = make_content_from_entity(action_entity_id)
+                if slot.content == nil then
+                  slot:SetContent(content)
+                  did_store_spell = true
+                elseif are_spells_same(content.spell, slot.content.spell) then
+                  slot.content.stack_size = slot.content.stack_size + 1
+                  did_store_spell = true
+                end
+                if did_store_spell then
+                  -- Apparently required according to some of my older comments, because EntityKill takes one frame to take effect
+                  EntityRemoveFromParent(action_entity_id)
+                  EntityKill(action_entity_id)
+                  break
+                end
+              end
+            end
+            ComponentSetValue2(inventory_2_comp, "mForceRefresh", true)
+            ComponentSetValue2(inventory_2_comp, "mActualActiveItem", 0)
+            GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
+          end
+        end
+    end
   end
+
   if InputIsMouseButtonJustUp(Mouse_right) then
     dragging_button = false
     ModSettingSet("AdvancedSpellInventory.button_pos_x", button_pos_x)

@@ -3,3 +3,5 @@ dist
 compatibility.xml
 stuff.lua
 TODO.md
+fmod/Build
+fmod/.cache
