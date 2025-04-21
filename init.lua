@@ -515,7 +515,7 @@ end
 local function update_spell_uses()
   for i, slot in ipairs(storage_slots) do
     if slot.content then
-      if has_infinite_spells() then
+      if has_infinite_spells() and not action_lookup[slot.content.spell.action_id].never_unlimited then
         slot.content.spell.uses_remaining = -1
       else
         slot.content.spell.uses_remaining = action_lookup[slot.content.spell.action_id].max_uses or -1
