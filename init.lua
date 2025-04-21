@@ -231,7 +231,13 @@ local function tooltip_func(gui, x, y, z, content)
   GuiAnimateAlphaFadeIn(gui, 2, 0.15, 0.15, false)
   if action_id and action_id ~= "" then
     local size = calculate_spell_tooltip_size(gui, x, y, z, content)
-    EZWand.RenderSpellTooltip(action_id, x + 2 - size.width / 2, y, gui)
+    if content.spell.entity_id then
+      EZWand.RenderSpellTooltip(content.spell.entity_id, x + 2 - size.width / 2, y, gui)
+    else
+      EZWand.RenderSpellTooltip(action_id, x + 2 - size.width / 2, y, gui, {
+        uses_remaining = content.spell.uses_remaining
+      })
+    end
     local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
     if not spell_tooltip_size_cache[content] then
       spell_tooltip_size_cache[content] = { width = width, height = height }
@@ -874,8 +880,6 @@ function OnWorldPostUpdate()
               local action_entity = CreateItemActionEntity(ev.content.spell.action_id)
               local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
               if item_comp then
-                ev.content.spell.entity_id = action_entity
-                ev.content.spell.item_comp = item_comp
                 ComponentSetValue2(item_comp, "inventory_slot", ev.target.data.slot_x - 1, ev.target.data.slot_y - 1)
                 ComponentSetValue2(item_comp, "uses_remaining", ev.content.spell.uses_remaining)
               end
@@ -940,7 +944,10 @@ function OnWorldPostUpdate()
             for i, action_entity_id in ipairs(EntityGetAllChildren(active_wand_entity_id) or {}) do
               for i, slot in ipairs(storage_slots or {}) do
                 local did_store_spell = false
+                -- This is the worst mod I've ever written what the fuck
                 local content = make_content_from_entity(action_entity_id)
+                content.spell.entity_id = nil
+                content.spell.item_comp = nil
                 if slot.content == nil then
                   slot:SetContent(content)
                   did_store_spell = true
