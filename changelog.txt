@@ -1,5 +1,6 @@
 UNRELEASED:
 - Add button and key shortcut (requires M-Néé) to dump all spells from active wand to storage
+- Fix "" spell bugging out the interface
 
 v0.6.0:
 - Add setting for closing spell inventory when inventory is opened

@@ -11,7 +11,12 @@ local EZWand
 local EZInventory = dofile_once("mods/AdvancedSpellInventory/lib/EZInventory/EZInventory.lua")
 local EZMouse = dofile("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/EZMouse.lua")("mods/AdvancedSpellInventory/lib/EZInventory/lib/EZMouse/")
 
-local action_lookup = {}
+local action_lookup = {
+  -- For "bugged" spells
+  [""] = {
+		sprite = "data/ui_gfx/gun_actions/unidentified.png"
+  }
+}
 local spell_types = {
   { name = "Everything", icon = "mods/AdvancedSpellInventory/files/spell_type_all.png" },
   { type = ACTION_TYPE_PROJECTILE, name = GameTextGetTranslatedOrNot("$inventory_actiontype_projectile"), icon = "data/ui_gfx/inventory/item_bg_projectile.png" },
@@ -224,16 +229,22 @@ local function tooltip_func(gui, x, y, z, content)
   GuiIdPushString(gui, "tooltip_animation")
   GuiAnimateScaleIn(gui, 1, 0.08, false)
   GuiAnimateAlphaFadeIn(gui, 2, 0.15, 0.15, false)
-  if action_id then
+  if action_id and action_id ~= "" then
     local size = calculate_spell_tooltip_size(gui, x, y, z, content)
     EZWand.RenderSpellTooltip(action_id, x + 2 - size.width / 2, y, gui)
     local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
     if not spell_tooltip_size_cache[content] then
       spell_tooltip_size_cache[content] = { width = width, height = height }
     end
-  else
+  elseif not action_id then
     local size = calculate_other_tooltip_size(gui, x, y, z, content)
     draw_other_tooltip(gui, x - size.width / 2, y + 7, z, content)
+  else
+    GuiBeginAutoBox(gui)
+    GuiZSetForNextWidget(gui, z - 1)
+    GuiText(gui, x, y, "Bugged spell oh no :(")
+    GuiZSetForNextWidget(gui, z)
+    GuiEndAutoBoxNinePiece(gui)
   end
   GuiIdPop(gui)
   GuiAnimateEnd(gui)
