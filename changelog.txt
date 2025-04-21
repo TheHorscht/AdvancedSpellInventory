@@ -1,5 +1,5 @@
-UNRELEASED:
-- Add button and key shortcut (requires M-Néé) to dump all spells from active wand to storage
+v0.7.0:
+- Add button (press L-Shift) and key shortcut (requires M-Néé) to dump all spells from active wand to storage
 - Fix "" spell bugging out the interface
 - Fix spell uses not being shown correctly
 - Fix interaction with unlimited spells

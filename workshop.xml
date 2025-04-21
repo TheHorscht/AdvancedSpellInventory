@@ -2,8 +2,8 @@
 	name="Advanced Spell Inventory"
 	description=""
 	tags="gameplay,quality of life,spells"
-	dont_upload_folders="node_modules|dist"
-	dont_upload_files="README.md|TODO.md|package-lock.json|package.json|.gitmodules|
+	dont_upload_folders="node_modules|dist|fmod"
+	dont_upload_files="README.md|TODO.md|package-lock.json|package.json|.gitmodules|.gitignore|
 	lib/EZWand/wandy.xml|lib/EZWand/TODO.md|lib/EZWand/tests.lua|stuff.lua"
 > 
 </Mod>
