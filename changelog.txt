@@ -1,3 +1,7 @@
+v0.7.2:
+- Fix storage not getting saved after dumping spells
+- Fix dump audio still playing even if sounds are disabled in the settings
+
 v0.7.1:
 - Remove default dump keybind, you should bind it manually now to avoid accidentally dumping stuff
 

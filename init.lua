@@ -965,7 +965,10 @@ function OnWorldPostUpdate()
             end
             ComponentSetValue2(inventory_2_comp, "mForceRefresh", true)
             ComponentSetValue2(inventory_2_comp, "mActualActiveItem", 0)
-            GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
+            if sounds_enabled then
+              GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
+            end
+            save_stored_spells()
           end
         end
     end
