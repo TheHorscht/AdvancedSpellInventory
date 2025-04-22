@@ -1,3 +1,6 @@
+v0.7.1:
+- Remove default dump keybind, you should bind it manually now to avoid accidentally dumping stuff
+
 v0.7.0:
 - Add button (press L-Shift) and key shortcut (requires M-Néé) to dump all spells from active wand to storage
 - Fix "" spell bugging out the interface
