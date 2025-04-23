@@ -844,7 +844,7 @@ function OnWorldPostUpdate()
       storage_slots = {}
       for y=1, num_rows do
         for x=1, full_inventory_slots_x do
-          local slot = EZInventory.Slot({
+          local storage_slot = EZInventory.Slot({
             x = origin_x + (x-1) * slot_width,
             y = origin_y + (y-1) * slot_height + (full_inventory_slots_y * slot_height) + filter_panel_height + 4,
             data = {
@@ -866,16 +866,16 @@ function OnWorldPostUpdate()
             width = slot_width,
             height = slot_height,
           })
-          slot:AddEventListener("shift_click", function(self, ev)
+          storage_slot:AddEventListener("shift_click", function(self, ev)
             if self.content then
               local free_slot = get_first_free_inventory_slot()
               if free_slot then
-                slot:MoveContent(free_slot)
+                storage_slot:MoveContent(free_slot)
               end
             end
           end)
-          slot:AddEventListener("drop_content", drop_content_handler)
-          slot:AddEventListener("move_content", function(self, ev)
+          storage_slot:AddEventListener("drop_content", drop_content_handler)
+          storage_slot:AddEventListener("move_content", function(self, ev)
             if not ev.target.data.is_storage then
               local action_entity = CreateItemActionEntity(ev.content.spell.action_id)
               local item_comp = EntityGetFirstComponentIncludingDisabled(action_entity, "ItemComponent")
@@ -888,7 +888,7 @@ function OnWorldPostUpdate()
             end
             save_stored_spells()
           end)
-          storage_slots[(y-1) * full_inventory_slots_x + x] = slot
+          storage_slots[(y-1) * full_inventory_slots_x + x] = storage_slot
         end
       end
     end
