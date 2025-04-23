@@ -443,6 +443,8 @@ local function update_slots()
       local content = make_content_from_entity(spell.entity_id)
       for i, slot in ipairs(storage_slots or {}) do
         if slot.content == nil then
+          content.spell.entity_id = nil
+          content.spell.item_comp = nil
           slot:SetContent(content)
           did_store_spell = true
         elseif are_spells_same(content.spell, slot.content.spell) then
