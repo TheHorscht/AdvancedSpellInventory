@@ -764,6 +764,44 @@ local function render_filter_panel(gui, new_id, origin_x, origin_y)
   return total_height
 end
 
+local function take_a_dump(player)
+  local inventory_2_comp = EntityGetFirstComponentIncludingDisabled(player, "Inventory2Component")
+  if inventory_2_comp then
+    local active_wand_entity_id = ComponentGetValue2(inventory_2_comp, "mActiveItem")
+    if is_wand(active_wand_entity_id) then
+      for i, spell in ipairs(EZWand(active_wand_entity_id):GetSpells()) do
+        -- table.insert(spells, { action_id = action_id, entity_id = spell, inventory_x = inventory_x, inventory_y = inventory_y })
+        for i, slot in ipairs(storage_slots or {}) do
+          local did_store_spell = false
+          -- This is the worst mod I've ever written what the fuck
+          local content = make_content_from_entity(spell.entity_id)
+          content.spell.entity_id = nil
+          content.spell.item_comp = nil
+          if slot.content == nil then
+            slot:SetContent(content)
+            did_store_spell = true
+          elseif are_spells_same(content.spell, slot.content.spell) then
+            slot.content.stack_size = slot.content.stack_size + 1
+            did_store_spell = true
+          end
+          if did_store_spell then
+            -- Apparently required according to some of my older comments, because EntityKill takes one frame to take effect
+            EntityRemoveFromParent(spell.entity_id)
+            EntityKill(spell.entity_id)
+            break
+          end
+        end
+      end
+      ComponentSetValue2(inventory_2_comp, "mForceRefresh", true)
+      ComponentSetValue2(inventory_2_comp, "mActualActiveItem", 0)
+      if sounds_enabled then
+        GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
+      end
+      save_stored_spells()
+    end
+  end
+end
+
 function OnWorldPostUpdate()
   if opening_inv_closes_spell_inv and GameIsInventoryOpen() then
     open = false
@@ -939,40 +977,7 @@ function OnWorldPostUpdate()
       GlobalsSetValue("AdvancedSpellInventory_is_open", tostring(open and 1 or 0))
       play_ui_sound("inventory_" .. (open and "open" or "close"))
     elseif is_dump_keybind_down() or (InputIsKeyDown(Key_LSHIFT) and button_clicked) then
-        local inventory_2_comp = EntityGetFirstComponentIncludingDisabled(player, "Inventory2Component")
-        if inventory_2_comp then
-          local active_wand_entity_id = ComponentGetValue2(inventory_2_comp, "mActiveItem")
-          if is_wand(active_wand_entity_id) then
-            for i, action_entity_id in ipairs(EntityGetAllChildren(active_wand_entity_id) or {}) do
-              for i, slot in ipairs(storage_slots or {}) do
-                local did_store_spell = false
-                -- This is the worst mod I've ever written what the fuck
-                local content = make_content_from_entity(action_entity_id)
-                content.spell.entity_id = nil
-                content.spell.item_comp = nil
-                if slot.content == nil then
-                  slot:SetContent(content)
-                  did_store_spell = true
-                elseif are_spells_same(content.spell, slot.content.spell) then
-                  slot.content.stack_size = slot.content.stack_size + 1
-                  did_store_spell = true
-                end
-                if did_store_spell then
-                  -- Apparently required according to some of my older comments, because EntityKill takes one frame to take effect
-                  EntityRemoveFromParent(action_entity_id)
-                  EntityKill(action_entity_id)
-                  break
-                end
-              end
-            end
-            ComponentSetValue2(inventory_2_comp, "mForceRefresh", true)
-            ComponentSetValue2(inventory_2_comp, "mActualActiveItem", 0)
-            if sounds_enabled then
-              GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
-            end
-            save_stored_spells()
-          end
-        end
+      take_a_dump(player)
     end
   end
 

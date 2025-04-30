@@ -1,3 +1,7 @@
+v0.7.4:
+- Fix always cast spells being dumped alongside the regular spells with the dump command
+- Improve the dump sound
+
 v0.7.3:
 - Fix bug with auto storage
 
