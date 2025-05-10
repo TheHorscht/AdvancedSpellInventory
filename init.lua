@@ -800,7 +800,6 @@ local function take_a_dump(player)
     local active_wand_entity_id = ComponentGetValue2(inventory_2_comp, "mActiveItem")
     if is_wand(active_wand_entity_id) then
       for i, spell in ipairs(EZWand(active_wand_entity_id):GetSpells()) do
-        -- table.insert(spells, { action_id = action_id, entity_id = spell, inventory_x = inventory_x, inventory_y = inventory_y })
         for i, slot in ipairs(storage_slots or {}) do
           local did_store_spell = false
           -- This is the worst mod I've ever written what the fuck
