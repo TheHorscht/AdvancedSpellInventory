@@ -1,4 +1,4 @@
-UNRELEASED:
+v0.8.0:
 - Dumping spells requires being able to edit wands.
 - Add a setting to turn that requirement off.
  
