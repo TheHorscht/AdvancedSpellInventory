@@ -1,3 +1,7 @@
+UNRELEASED:
+- Dumping spells requires being able to edit wands.
+- Add a setting to turn that requirement off.
+ 
 v0.7.4:
 - Fix always cast spells being dumped alongside the regular spells with the dump command
 - Improve the dump sound

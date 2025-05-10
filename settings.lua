@@ -56,6 +56,12 @@ mod_settings =
 		scope = MOD_SETTING_SCOPE_RUNTIME,
 	},
 	{
+		id = "spell_dump_needs_wand_tinkering",
+		ui_name = "Dumping spells requires wand tinkering",
+		value_default = true,
+		scope = MOD_SETTING_SCOPE_RUNTIME,
+	},
+	{
 		not_setting = true,
 		ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
 			if GuiButton(gui, im_id, 0, 0, "[ Reset button position ]") then

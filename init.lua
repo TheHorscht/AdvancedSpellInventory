@@ -43,6 +43,29 @@ local function is_wand(entity)
 	return ComponentGetValue2(ability_component, "use_gun_script") == true
 end
 
+local function can_edit_wands(player)
+  if player then
+    local px, py = EntityGetTransform(player)
+    for i, entity_id in ipairs(EntityGetWithTag("workshop")) do
+      local hitbox_comp = EntityGetFirstComponentIncludingDisabled(entity_id, "HitboxComponent")
+      if hitbox_comp then
+        local x, y = EntityGetTransform(entity_id)
+        local aabb_min_x = ComponentGetValue2(hitbox_comp, "aabb_min_x")
+        local aabb_min_y = ComponentGetValue2(hitbox_comp, "aabb_min_y")
+        local aabb_max_x = ComponentGetValue2(hitbox_comp, "aabb_max_x")
+        local aabb_max_y = ComponentGetValue2(hitbox_comp, "aabb_max_y")
+        if px > (x + aabb_min_x) and px < (x + aabb_max_x) and py > (y + aabb_min_y) and py < (y + aabb_max_y) then
+          return true
+        end
+      end
+    end
+    if GameGetGameEffectCount(player, "EDIT_WANDS_EVERYWHERE") > 0 then
+      return true
+    end
+  end
+  return false
+end
+
 -- Add script to spell refresh
 do
   local file_path = "data/entities/particles/image_emitters/spell_refresh_effect.xml"
@@ -59,6 +82,7 @@ do
 end
 
 local sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
+local spell_dump_needs_wand_tinkering = ModSettingGet("AdvancedSpellInventory.spell_dump_needs_wand_tinkering")
 EZInventory.SetSoundsEnabled(sounds_enabled)
 local function play_ui_sound(name)
   if not sounds_enabled then
@@ -115,6 +139,7 @@ function OnPausedChanged(is_paused, is_main_menu)
     sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
     enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
     opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.opening_inv_closes_spell_inv")
+    spell_dump_needs_wand_tinkering = ModSettingGet("AdvancedSpellInventory.spell_dump_needs_wand_tinkering")
     EZInventory.SetSoundsEnabled(sounds_enabled)
     EZInventory.UpdateCustomScreenResolution()
   end
@@ -765,6 +790,11 @@ local function render_filter_panel(gui, new_id, origin_x, origin_y)
 end
 
 local function take_a_dump(player)
+  if spell_dump_needs_wand_tinkering and not can_edit_wands(player) then
+    GamePlaySound("data/audio/Desktop/ui.bank", "ui/button_denied", 0, 0)
+    GamePrint("Can only dump spells if wand tinkering is possible.")
+    return
+  end
   local inventory_2_comp = EntityGetFirstComponentIncludingDisabled(player, "Inventory2Component")
   if inventory_2_comp then
     local active_wand_entity_id = ComponentGetValue2(inventory_2_comp, "mActiveItem")
