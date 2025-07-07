@@ -82,6 +82,8 @@ do
 end
 
 local sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
+local enable_funny_dump_sound = ModSettingGet("AdvancedSpellInventory.enable_funny_dump_sound")
+local dump_button_image = enable_funny_dump_sound and "dump_button.png" or "dump_button2.png"
 local spell_dump_needs_wand_tinkering = ModSettingGet("AdvancedSpellInventory.spell_dump_needs_wand_tinkering")
 EZInventory.SetSoundsEnabled(sounds_enabled)
 local function play_ui_sound(name)
@@ -137,6 +139,8 @@ function OnPausedChanged(is_paused, is_main_menu)
     button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
     button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
     sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
+    enable_funny_dump_sound = ModSettingGet("AdvancedSpellInventory.enable_funny_dump_sound")
+    dump_button_image = enable_funny_dump_sound and "dump_button.png" or "dump_button2.png"
     enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
     opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.opening_inv_closes_spell_inv")
     spell_dump_needs_wand_tinkering = ModSettingGet("AdvancedSpellInventory.spell_dump_needs_wand_tinkering")
@@ -824,7 +828,11 @@ local function take_a_dump(player)
       ComponentSetValue2(inventory_2_comp, "mForceRefresh", true)
       ComponentSetValue2(inventory_2_comp, "mActualActiveItem", 0)
       if sounds_enabled then
-        GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
+        if enable_funny_dump_sound then
+          GamePlaySound("mods/AdvancedSpellInventory/audio/AdvancedSpellInventory.bank", "dump", 0, 0)
+        else
+          play_ui_sound("new_unlock")
+        end
       end
       save_stored_spells()
     end
@@ -990,7 +998,7 @@ function OnWorldPostUpdate()
 	if player then
     local button_clicked = false
     if not inventory_open and not inventory_bags_open then
-      local image = InputIsKeyDown(Key_LSHIFT) and "dump_button.png" or "gui_button.png"
+      local image = InputIsKeyDown(Key_LSHIFT) and dump_button_image or "gui_button.png"
       button_clicked = GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/" .. image)
       local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)
       if hovered and InputIsMouseButtonDown(Mouse_right) then

@@ -62,6 +62,12 @@ mod_settings =
 		scope = MOD_SETTING_SCOPE_RUNTIME,
 	},
 	{
+		id = "enable_funny_dump_sound",
+		ui_name = "Huh, I wonder what this does, I should enable it and dump my spells to find out",
+		value_default = false,
+		scope = MOD_SETTING_SCOPE_RUNTIME,
+	},
+	{
 		not_setting = true,
 		ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
 			if GuiButton(gui, im_id, 0, 0, "[ Reset button position ]") then
