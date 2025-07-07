@@ -1,5 +1,6 @@
-UNRELEASED:
+v0.9.0:
 - Make the funny dump sound optional by adding a setting for it
+- Add sort by amount
 
 v0.8.0:
 - Dumping spells requires being able to edit wands.

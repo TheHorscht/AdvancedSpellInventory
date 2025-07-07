@@ -107,6 +107,12 @@ sorting_functions = {
     if a.spell.uses_remaining > b.spell.uses_remaining then return false end
     return sorting_functions.alphabetical(a, b)
   end,
+  amount = function(a, b)
+    -- First sort by amount, and if they're equal alphabetically
+    if a.stack_size < b.stack_size then return true end
+    if a.stack_size > b.stack_size then return false end
+    return sorting_functions.alphabetical(a, b)
+  end,
   type = function(a, b)
     -- First sort by uses remaining, and if they're equal alphabetically
     local type_a = action_lookup[a.spell.action_id].type
@@ -709,6 +715,7 @@ local function render_filter_panel(gui, new_id, origin_x, origin_y)
   local o = {
     ["A-Z"] = sorting_functions.alphabetical,
     ["Uses"] = sorting_functions.uses_remaining,
+    ["Amount"] = sorting_functions.amount,
     ["Type"] = sorting_functions.type,
   }
   for name, func in pairs(o) do
