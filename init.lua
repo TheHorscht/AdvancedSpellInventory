@@ -123,8 +123,8 @@ sorting_functions = {
   end,
 }
 
-local button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
-local button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
+local button_pos_x = tonumber(ModSettingGet("AdvancedSpellInventory.button_pos_x")) or 162
+local button_pos_y = tonumber(ModSettingGet("AdvancedSpellInventory.button_pos_y")) or 41
 local open = false
 local origin_x, origin_y =
   tonumber(MagicNumbersGetValue("UI_FULL_INVENTORY_OFFSET_X"))
@@ -142,8 +142,8 @@ local opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.openi
 
 function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
-    button_pos_x = ModSettingGet("AdvancedSpellInventory.button_pos_x") or 162
-    button_pos_y = ModSettingGet("AdvancedSpellInventory.button_pos_y") or 41
+    button_pos_x = tonumber(ModSettingGet("AdvancedSpellInventory.button_pos_x")) or 162
+    button_pos_y = tonumber(ModSettingGet("AdvancedSpellInventory.button_pos_y")) or 41
     sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
     enable_funny_dump_sound = ModSettingGet("AdvancedSpellInventory.enable_funny_dump_sound")
     dump_button_image = enable_funny_dump_sound and "dump_button.png" or "dump_button2.png"
