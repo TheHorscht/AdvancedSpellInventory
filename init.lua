@@ -139,6 +139,39 @@ local num_rows = ModSettingGet("AdvancedSpellInventory.num_rows")
 local auto_storage = ModSettingGet("AdvancedSpellInventory.auto_storage")
 local enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
 local opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.opening_inv_closes_spell_inv")
+local num_blocklist_entries = ModSettingGet("AdvancedSpellInventory.num_blocklist_entries")
+local blocklist_entries = {}
+local function update_blocklist()
+  blocklist_entries = {}
+  for i=1, num_blocklist_entries do
+    local name = ModSettingGet("AdvancedSpellInventory.blocklist_entries." .. i)
+    -- It should always exist, but just to shut up the IDE warnings...
+    if name then
+      local exact_match = ModSettingGet("AdvancedSpellInventory.blocklist_entries." .. i .. ".exact_match")
+      table.insert(blocklist_entries, {
+        name = name,
+        exact_match = exact_match
+      })
+    end
+  end
+end
+update_blocklist()
+
+local function can_spell_be_stored(action_id)
+  local name = GameTextGetTranslatedOrNot(action_lookup[action_id].name)
+  for i, entry in ipairs(blocklist_entries) do
+    if entry.exact_match then
+      if entry.name == name then
+        return false
+      end
+    else
+      if name:lower():match(entry.name:lower()) then
+        return false
+      end
+    end
+  end
+  return true
+end
 
 function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
@@ -149,6 +182,7 @@ function OnPausedChanged(is_paused, is_main_menu)
     dump_button_image = enable_funny_dump_sound and "dump_button.png" or "dump_button2.png"
     enable_spell_refresh_in_storage = ModSettingGet("AdvancedSpellInventory.enable_spell_refresh_in_storage")
     opening_inv_closes_spell_inv = ModSettingGet("AdvancedSpellInventory.opening_inv_closes_spell_inv")
+    update_blocklist()
     spell_dump_needs_wand_tinkering = ModSettingGet("AdvancedSpellInventory.spell_dump_needs_wand_tinkering")
     EZInventory.SetSoundsEnabled(sounds_enabled)
     EZInventory.UpdateCustomScreenResolution()
@@ -474,7 +508,7 @@ local function update_slots()
   end
   for i, spell in ipairs(get_spells_in_inventory() or {}) do
     local did_store_spell = false
-    if auto_storage and spell.action_id and spell.item_comp and ComponentGetValue2(spell.item_comp, "mFramePickedUp") == GameGetFrameNum() then
+    if auto_storage and spell.action_id and can_spell_be_stored(spell.action_id) and spell.item_comp and ComponentGetValue2(spell.item_comp, "mFramePickedUp") == GameGetFrameNum() then
       local content = make_content_from_entity(spell.entity_id)
       for i, slot in ipairs(storage_slots or {}) do
         if slot.content == nil then
@@ -811,24 +845,26 @@ local function take_a_dump(player)
     local active_wand_entity_id = ComponentGetValue2(inventory_2_comp, "mActiveItem")
     if is_wand(active_wand_entity_id) then
       for i, spell in ipairs(EZWand(active_wand_entity_id):GetSpells()) do
-        for i, slot in ipairs(storage_slots or {}) do
-          local did_store_spell = false
-          -- This is the worst mod I've ever written what the fuck
-          local content = make_content_from_entity(spell.entity_id)
-          content.spell.entity_id = nil
-          content.spell.item_comp = nil
-          if slot.content == nil then
-            slot:SetContent(content)
-            did_store_spell = true
-          elseif are_spells_same(content.spell, slot.content.spell) then
-            slot.content.stack_size = slot.content.stack_size + 1
-            did_store_spell = true
-          end
-          if did_store_spell then
-            -- Apparently required according to some of my older comments, because EntityKill takes one frame to take effect
-            EntityRemoveFromParent(spell.entity_id)
-            EntityKill(spell.entity_id)
-            break
+        if can_spell_be_stored(spell.action_id) then
+          for i, slot in ipairs(storage_slots or {}) do
+            local did_store_spell = false
+            -- This is the worst mod I've ever written what the fuck
+            local content = make_content_from_entity(spell.entity_id)
+            content.spell.entity_id = nil
+            content.spell.item_comp = nil
+            if slot.content == nil then
+              slot:SetContent(content)
+              did_store_spell = true
+            elseif are_spells_same(content.spell, slot.content.spell) then
+              slot.content.stack_size = slot.content.stack_size + 1
+              did_store_spell = true
+            end
+            if did_store_spell then
+              -- Apparently required according to some of my older comments, because EntityKill takes one frame to take effect
+              EntityRemoveFromParent(spell.entity_id)
+              EntityKill(spell.entity_id)
+              break
+            end
           end
         end
       end
@@ -892,7 +928,7 @@ function OnWorldPostUpdate()
               slot_x = x,
               slot_y = y,
               move_check = function(self, target_slot)
-                return self.content.spell.action_id ~= nil or not target_slot.data.is_storage
+                return (self.content.spell.action_id ~= nil or not target_slot.data.is_storage) and can_spell_be_stored(self.content.spell.action_id)
               end,
               -- Needs to return the max stack size this slot can hold of the provided content
               get_max_stack_size = function(self, content)

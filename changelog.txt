@@ -1,3 +1,6 @@
+v0.10.0:
+- Add a blocklist to the settings which lets you specify spells by name that should not be stored
+
 v0.9.0:
 - Make the funny dump sound optional by adding a setting for it
 - Add sort by amount

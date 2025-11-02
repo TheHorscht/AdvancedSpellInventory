@@ -76,6 +76,69 @@ mod_settings =
 			end
 		end
 	},
+	-- Blocklist
+	{
+		category_id = "blocklist",
+		ui_name = "Blocklist",
+		ui_description = "Entries in here will not be able to be put into the inventory.",
+		foldable = true,
+		settings = {
+			{
+				scope = MOD_SETTING_SCOPE_RUNTIME,
+				ui_fn = function(mod_id, gui, in_main_menu, im_id, setting)
+					local id = 2
+					local function new_id()
+						id = id + 1
+						return id
+					end
+					local function get_setting_id(idx)
+						return mod_id .. "." .. "blocklist_entries." .. idx
+					end
+					GuiIdPush(gui, im_id)
+					GuiLayoutBeginVertical(gui, 0, 0)
+					local num_entries = ModSettingGetNextValue(mod_id .. "." .. "num_blocklist_entries") or 0
+					for i=1, num_entries do
+						GuiLayoutBeginHorizontal(gui, 5, 0, true)
+						local text = ModSettingGetNextValue(get_setting_id(i)) or ""
+						local new_text = GuiTextInput(gui, new_id(), 0, 0, tostring(text), 100, 100)
+						if text ~= new_text then
+							ModSettingSetNextValue(get_setting_id(i), new_text, false)
+						end
+						local setting_id = get_setting_id(i) .. ".exact_match"
+						local checked = not not ModSettingGetNextValue(setting_id)
+						if GuiButton(gui, new_id(), 0, 0, ("Exact match: [%s]"):format(checked and "*" or "  ")) then
+							ModSettingSetNextValue(setting_id, not checked, false)
+						end
+						GuiTooltip(gui, [[If enabled, requires exact spell name, case sensitive.
+For example: "Spitter bolt" will not match "Spitter Bolt"
+If disabled, it is enough if the filter appears in the name.
+For example: "bolt" will match "Spitter Bolt", "Lightning Bolt" etc]], "")
+						GuiText(gui, 0, 0, " - ")
+						if GuiButton(gui, new_id(), 0, 0, "[ Remove entry ]") then
+							for i2=i, num_entries-1 do
+								local next_entry = ModSettingGetNextValue(get_setting_id(i2+1)) or ""
+								ModSettingSetNextValue(get_setting_id(i2), next_entry, false)
+								next_entry = ModSettingGetNextValue(get_setting_id(i2+1) .. ".exact_match") or false
+								ModSettingSetNextValue(get_setting_id(i2) .. ".exact_match", next_entry, false)
+							end
+							ModSettingRemove(get_setting_id(num_entries))
+							ModSettingRemove(get_setting_id(num_entries) .. ".exact_match")
+							ModSettingSetNextValue(mod_id .. ".num_blocklist_entries", num_entries - 1, false)
+						end
+						GuiLayoutEnd(gui)
+					end
+					if GuiButton(gui, new_id(), 5, 0, "[ Add new entry ]") then
+						ModSettingSetNextValue(mod_id .. ".num_blocklist_entries", num_entries + 1, false)
+					end
+					GuiLayoutEnd(gui)
+					local _, _, _, _, _, _, _, _, _, _, draw_height = GuiGetPreviousWidgetInfo(gui)
+					GuiIdPop(gui)
+					-- Add empty space to push the layout down because for some reason it's not working
+					GuiText(gui, 0, (draw_height + 2) * (num_entries-1), " ")
+				end
+			},
+		}
+	},
 	{
 		category_id = "custom_resolution",
 		foldable = true,
@@ -161,6 +224,15 @@ mod_settings =
 function ModSettingsUpdate(init_scope)
 	local old_version = mod_settings_get_version(mod_id)
 	mod_settings_update(mod_id, mod_settings, init_scope)
+	-- Save the blocklist
+	local num_blocklist_entries = ModSettingGetNextValue(mod_id .. ".num_blocklist_entries") or 0
+	ModSettingSet(mod_id .. ".num_blocklist_entries", num_blocklist_entries)
+	for i=1, num_blocklist_entries do
+		local entry = ModSettingGetNextValue(mod_id .. ".blocklist_entries." .. tostring(i)) or ""
+		ModSettingSet(mod_id .. ".blocklist_entries." .. tostring(i), entry)
+		local exact_match = ModSettingGetNextValue(mod_id .. ".blocklist_entries." .. tostring(i) .. ".exact_match") or false
+		ModSettingSet(mod_id .. ".blocklist_entries." .. tostring(i) .. ".exact_match", exact_match)
+	end
 end
 
 function ModSettingsGuiCount()
