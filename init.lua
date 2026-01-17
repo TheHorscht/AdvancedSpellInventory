@@ -904,7 +904,9 @@ function OnWorldPostUpdate()
 
   -- Run this 1 frame after player has spawned
   if frame_player_spawned == GameGetFrameNum() - 1 then
-    dofile_once("mods/mnee/lib.lua")
+    if ModIsEnabled("mnee") then
+      dofile_once("mods/mnee/lib.lua")
+    end
     -- Do this here so mods have enough time to do their gun_actions.lua mod appends
     dofile_once("data/scripts/gun/gun_actions.lua")
     EZWand = dofile_once("mods/AdvancedSpellInventory/lib/EZWand/EZWand.lua")
