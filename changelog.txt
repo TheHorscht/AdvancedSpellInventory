@@ -1,3 +1,6 @@
+v0.10.1:
+- Add a setting to hide the button (so you can use it with keybind only)
+
 v0.10.0:
 - Add a blocklist to the settings which lets you specify spells by name that should not be stored
 

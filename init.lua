@@ -81,6 +81,7 @@ do
   ]]))
 end
 
+local show_button = ModSettingGet("AdvancedSpellInventory.show_button")
 local sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
 local enable_funny_dump_sound = ModSettingGet("AdvancedSpellInventory.enable_funny_dump_sound")
 local dump_button_image = enable_funny_dump_sound and "dump_button.png" or "dump_button2.png"
@@ -177,6 +178,7 @@ function OnPausedChanged(is_paused, is_main_menu)
   if not is_paused then
     button_pos_x = tonumber(ModSettingGet("AdvancedSpellInventory.button_pos_x")) or 162
     button_pos_y = tonumber(ModSettingGet("AdvancedSpellInventory.button_pos_y")) or 41
+    show_button = ModSettingGet("AdvancedSpellInventory.show_button")
     sounds_enabled = ModSettingGet("AdvancedSpellInventory.sounds_enabled")
     enable_funny_dump_sound = ModSettingGet("AdvancedSpellInventory.enable_funny_dump_sound")
     dump_button_image = enable_funny_dump_sound and "dump_button.png" or "dump_button2.png"
@@ -1042,7 +1044,7 @@ function OnWorldPostUpdate()
   local inventory_bags_open = GlobalsGetValue("InventoryBags_is_open", "0") ~= "0"
 	if player then
     local button_clicked = false
-    if not inventory_open and not inventory_bags_open then
+    if not inventory_open and not inventory_bags_open and show_button then
       local image = InputIsKeyDown(Key_LSHIFT) and dump_button_image or "gui_button.png"
       button_clicked = GuiImageButton(gui, 99999, button_pos_x, button_pos_y, "", "mods/AdvancedSpellInventory/files/" .. image)
       local clicked, right_clicked, hovered, x, y, width, height, draw_x, draw_y, draw_width, draw_height = GuiGetPreviousWidgetInfo(gui)

@@ -20,6 +20,12 @@ local custom_gui
 mod_settings =
 {
 	{
+		id = "show_button",
+		ui_name = "Show button",
+		value_default = true,
+		scope = MOD_SETTING_SCOPE_RUNTIME,
+	},
+	{
 		id = "sounds_enabled",
 		ui_name = "Enable sounds",
 		value_default = true,
